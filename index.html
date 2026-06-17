@@ -28,6 +28,7 @@
   header {
     text-align: center;
     margin-bottom: 18px;
+    position: relative;
   }
   header h1 {
     color: var(--pink);
@@ -75,6 +76,21 @@
     color: var(--pink-dark);
     font-weight: 700;
   }
+
+  /* 設定齒輪按鈕 */
+  .gear-btn {
+    position: absolute;
+    top: 0; right: 0;
+    width: 38px; height: 38px;
+    border: none;
+    border-radius: 50%;
+    background: var(--pink);
+    color: #fff;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(233,30,140,0.3);
+  }
+  .gear-btn:hover { background: var(--pink-dark); }
 
   /* Result */
   .result-total {
@@ -143,6 +159,73 @@
   details { font-size: 0.82rem; color: var(--muted); margin-top: 10px; }
   details summary { cursor: pointer; color: var(--pink-dark); }
   details ul { padding-left: 18px; }
+
+  /* 設定面板 */
+  .overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px 12px;
+  }
+  .overlay.open { display: block; }
+  .modal {
+    max-width: 600px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .modal h2 { color: var(--pink); margin: 0 0 4px; font-size: 1.25rem; }
+  .modal h3 {
+    color: var(--pink-dark);
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 4px;
+    margin: 22px 0 12px;
+    font-size: 1rem;
+  }
+  .modal h4 { margin: 14px 0 6px; font-size: 0.9rem; color: var(--ink); }
+  .modal input {
+    padding: 6px 8px;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  .modal input[type=number] { width: 68px; }
+  .modal input[type=time] { width: 104px; }
+  .modal input[data-f=name] { width: 100%; margin-bottom: 6px; font-weight: 700; }
+  .set-room, .set-comp { border-bottom: 1px dashed var(--line); padding: 10px 0; }
+  .set-room .mini, .set-slot { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .set-room .mini label, .set-slot label {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-weight: 600; font-size: 0.82rem; color: var(--muted); margin: 0;
+  }
+  .set-comp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .set-comp input[data-f=name] { flex: 1; width: auto; margin: 0; }
+  .set-day { margin-bottom: 14px; }
+  .set-slot { padding: 7px 0; border-bottom: 1px dotted var(--line); }
+  .btn {
+    border: none; border-radius: 10px; padding: 10px 16px;
+    font-size: 0.92rem; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--pink); color: #fff; }
+  .btn-primary:hover { background: var(--pink-dark); }
+  .btn-ghost { background: #f3f3f3; color: var(--ink); }
+  .btn-sm { padding: 5px 10px; font-size: 0.8rem; border-radius: 8px; }
+  .btn-del { background: #ffe3ef; color: var(--pink-dark); }
+  .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .modal-actions .btn { flex: 1; min-width: 120px; }
+  textarea {
+    width: 100%; min-height: 110px; font-family: monospace; font-size: 0.78rem;
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 8px; resize: vertical;
+  }
+  .sync-note {
+    background: var(--yellow); border-radius: 8px; padding: 10px 12px;
+    font-size: 0.8rem; color: var(--ink); margin-top: 8px; line-height: 1.6;
+  }
+  .sync-note b { color: var(--pink-dark); }
 </style>
 </head>
 <body>
@@ -150,6 +233,7 @@
   <header>
     <h1>🎤 豐原向陽店 KTV 分帳計算機</h1>
     <p>選人數、日期與進場時間，自動算出每人費用</p>
+    <button class="gear-btn" id="gearBtn" title="設定價目表">⚙️</button>
   </header>
 
   <div class="card">
@@ -219,76 +303,166 @@
   </footer>
 </div>
 
+<!-- 設定面板 -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>⚙️ 價目表設定</h2>
+    <p class="hint">修改後按「儲存」即時生效（存在本機瀏覽器）。要讓所有人都更新，請見最下方同步說明。</p>
+
+    <h3>包廂價格</h3>
+    <div id="setRooms"></div>
+
+    <h3>企業合作優惠</h3>
+    <div id="setCompanies"></div>
+    <button class="btn btn-ghost btn-sm" id="addCompany" type="button">＋ 新增企業</button>
+
+    <h3>時段折扣</h3>
+    <p class="hint">「送 N 小時」= 買二送 N（共 2+N 小時）。勾選「鐘點計價」則全時數計費、不送時數。折數填百分比（例：五折填 50、原價填 100）。</p>
+    <div id="setSlots"></div>
+
+    <h3>同步到 GitHub（讓所有人更新）— 操作 SOP</h3>
+    <div class="sync-note">
+      ⚠️ 改完按「儲存」<b>只有你這台電腦</b>會記得；透過網址打開的其他人看到的還是舊價。<br>
+      要讓<b>所有人</b>都更新，請依以下步驟把設定碼貼回 GitHub（只需做一次）：<br><br>
+      <b>步驟 1.</b> 按下方 <b>「📋 複製設定碼」</b> 按鈕（會複製目前面板上的所有設定）。<br>
+      <b>步驟 2.</b> 用瀏覽器打開這個網址：<br>
+      　<a href="https://github.com/clovermikelai/KTV/edit/main/config.json" target="_blank">github.com/clovermikelai/KTV/edit/main/config.json</a><br>
+      　（這會直接進入 config.json 的編輯畫面；若提示登入，先登入 GitHub）<br>
+      <b>步驟 3.</b> 在編輯框內<b>全選舊內容（Ctrl+A）刪除</b>，再<b>貼上（Ctrl+V）</b>剛複製的設定碼。<br>
+      <b>步驟 4.</b> 捲到頁面最下方（或右上角）按綠色按鈕 <b>「Commit changes」</b> → 再按一次確認。<br>
+      <b>步驟 5.</b> 等約 1～2 分鐘，網站會自動更新，<b>所有人</b>重新整理後就看到新價。<br><br>
+      💡 小提醒：網址裡的 <b>clovermikelai/KTV</b> 是你的 GitHub 帳號與 repo 名，若日後搬到別的 repo 要換掉。
+    </div>
+    <textarea id="exportBox" readonly></textarea>
+    <button class="btn btn-ghost btn-sm" id="copyExport" type="button">📋 複製設定碼</button>
+    <a class="btn btn-ghost btn-sm" href="https://github.com/clovermikelai/KTV/edit/main/config.json" target="_blank" style="text-decoration:none; display:inline-block;">🔗 開啟 GitHub 編輯頁</a>
+
+    <details>
+      <summary>貼上設定碼匯入（進階）</summary>
+      <textarea id="importBox" placeholder="貼上設定碼後按下方「匯入套用」"></textarea>
+      <button class="btn btn-ghost btn-sm" id="applyImport" type="button">匯入套用</button>
+    </details>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="saveSettings" type="button">儲存</button>
+      <button class="btn btn-ghost" id="resetSettings" type="button">重設為預設</button>
+      <button class="btn btn-ghost" id="closeSettings" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// ---- 資料 ----
-const ROOMS = [
-  { key: "small",  name: "小包廂",   min: 3,  max: 4,  room: 600,  clean: 400 },
-  { key: "medium", name: "中包廂",   min: 5,  max: 7,  room: 800,  clean: 400 },
-  { key: "large",  name: "大包廂",   min: 8,  max: 12, room: 1000, clean: 500 },
-  { key: "xl",     name: "特大包廂", min: 13, max: 15, room: 1300, clean: 600 },
-  { key: "vip",    name: "VIP包廂",  min: 16, max: 30, room: 1500, clean: 600 },
-];
-
-// 企業合作優惠（rate = 包廂費乘數；1 = 無折扣）
-const COMPANIES = [
-  { name: "無（一般價）", rate: 1 },
-  { name: "台中美光（85 折）", rate: 0.85 },
-];
-
-// 時段表：start/end 為當日分鐘(0-1439)，可跨午夜（end < start 表示跨日）
-// promo: 免費送 N 小時（買二送 N）；hourly:true 表示鐘點計價（全時數計費）
-// discount: 折數乘數（0.3 = 三折，1 = 原價）
-function t(h, m) { return h * 60 + m; }
-const SLOTS = {
-  weekday: { label: "平日（星期一~四）", slots: [
-    { from: t(8,0),  to: t(12,59), promo: 2, discount: 0.3, desc: "買二送二・三折" },
-    { from: t(13,0), to: t(18,59), promo: 2, discount: 0.5, desc: "買二送二・五折" },
-    { from: t(19,0), to: t(0,59),  promo: 3, discount: 0.7, desc: "買二送三・七折" },
-    { from: t(1,0),  to: t(7,59),  promo: 3, discount: 0.6, desc: "買二送三・六折" },
-  ]},
-  friday: { label: "星期五（例假日前夕）", slots: [
-    { from: t(8,0),  to: t(12,59), promo: 2, discount: 0.3, desc: "買二送二・三折" },
-    { from: t(13,0), to: t(18,59), promo: 2, discount: 0.5, desc: "買二送二・五折" },
-    { from: t(19,0), to: t(1,59),  hourly: true, discount: 0.8, desc: "鐘點計價・八折" },
-    { from: t(2,0),  to: t(7,59),  promo: 3, discount: 0.7, desc: "買二送三・七折" },
-  ]},
-  saturday: { label: "星期六（連續假日）", slots: [
-    { from: t(8,0),  to: t(12,59), promo: 2, discount: 0.5, desc: "買二送二・五折" },
-    { from: t(13,0), to: t(16,59), promo: 2, discount: 0.6, desc: "買二送二・六折" },
-    { from: t(17,0), to: t(18,59), promo: 1, discount: 0.6, desc: "買二送一・六折" },
-    { from: t(19,0), to: t(7,59),  hourly: true, discount: 1.0, desc: "鐘點計價・原價" },
-  ]},
-  sunday: { label: "星期日（國定假日當天）", slots: [
-    { from: t(8,0),  to: t(12,59), promo: 2, discount: 0.5, desc: "買二送二・五折" },
-    { from: t(13,0), to: t(18,59), promo: 2, discount: 0.6, desc: "買二送二・六折" },
-    { from: t(19,0), to: t(0,59),  promo: 2, discount: 0.7, desc: "買二送二・七折" },
-    { from: t(1,0),  to: t(7,59),  promo: 3, discount: 0.6, desc: "買二送三・六折" },
-  ]},
+// ==== 預設價目表（與計價表圖一致）。實際載入優先序：本機修改 > config.json > 此預設 ====
+const DEFAULT_CONFIG = {
+  rooms: [
+    { key: "small",  name: "小包廂",   min: 3,  max: 4,  room: 600,  clean: 400 },
+    { key: "medium", name: "中包廂",   min: 5,  max: 7,  room: 800,  clean: 400 },
+    { key: "large",  name: "大包廂",   min: 8,  max: 12, room: 1000, clean: 500 },
+    { key: "xl",     name: "特大包廂", min: 13, max: 15, room: 1300, clean: 600 },
+    { key: "vip",    name: "VIP包廂",  min: 16, max: 30, room: 1500, clean: 600 },
+  ],
+  // 企業合作優惠（rate = 包廂費乘數；1 = 無折扣）
+  companies: [
+    { name: "無（一般價）", rate: 1 },
+    { name: "台中美光（85 折）", rate: 0.85 },
+  ],
+  // 時段表：from/to 為 "HH:MM"，可跨午夜（to < from 表示跨日）
+  // promo: 買二送 N（共 2+N 小時）；hourly:true 表示鐘點計價（全時數計費）
+  // discount: 折數乘數（0.3 = 三折，1 = 原價）
+  slots: {
+    weekday: { label: "平日（星期一~四）", slots: [
+      { from: "08:00", to: "12:59", promo: 2, discount: 0.3 },
+      { from: "13:00", to: "18:59", promo: 2, discount: 0.5 },
+      { from: "19:00", to: "00:59", promo: 3, discount: 0.7 },
+      { from: "01:00", to: "07:59", promo: 3, discount: 0.6 },
+    ]},
+    friday: { label: "星期五（例假日前夕）", slots: [
+      { from: "08:00", to: "12:59", promo: 2, discount: 0.3 },
+      { from: "13:00", to: "18:59", promo: 2, discount: 0.5 },
+      { from: "19:00", to: "01:59", hourly: true, discount: 0.8 },
+      { from: "02:00", to: "07:59", promo: 3, discount: 0.7 },
+    ]},
+    saturday: { label: "星期六（連續假日）", slots: [
+      { from: "08:00", to: "12:59", promo: 2, discount: 0.5 },
+      { from: "13:00", to: "16:59", promo: 2, discount: 0.6 },
+      { from: "17:00", to: "18:59", promo: 1, discount: 0.6 },
+      { from: "19:00", to: "07:59", hourly: true, discount: 1.0 },
+    ]},
+    sunday: { label: "星期日（國定假日當天）", slots: [
+      { from: "08:00", to: "12:59", promo: 2, discount: 0.5 },
+      { from: "13:00", to: "18:59", promo: 2, discount: 0.6 },
+      { from: "19:00", to: "00:59", promo: 2, discount: 0.7 },
+      { from: "01:00", to: "07:59", promo: 3, discount: 0.6 },
+    ]},
+  },
 };
+const DAY_ORDER = ["weekday", "friday", "saturday", "sunday"];
 
-// ---- 工具函式 ----
+// ==== 設定載入／套用 ====
+const clone = o => JSON.parse(JSON.stringify(o));
+const LS_KEY = "ktv_config_local";
+
+let CONFIG, ROOMS, COMPANIES, SLOTS;
+
+const ZH = ["零","一","二","三","四","五","六","七","八","九","十"];
+function zheLabel(d) { return d >= 1 ? "原價" : (ZH[Math.round(d*10)] || (d*10)) + "折"; }
+function genDesc(s) {
+  const dl = zheLabel(s.discount);
+  return s.hourly ? `鐘點計價・${dl}` : `買二送${ZH[s.promo] || s.promo}・${dl}`;
+}
+function toMin(hhmm) { const [h,m] = hhmm.split(":").map(Number); return h*60 + m; }
+function toHHMM(min) { return String(Math.floor(min/60)).padStart(2,"0") + ":" + String(min%60).padStart(2,"0"); }
+function t(h, m) { return h*60 + m; }
+
+function applyConfig(cfg) {
+  CONFIG = cfg;
+  ROOMS = cfg.rooms;
+  COMPANIES = cfg.companies;
+  SLOTS = {};
+  for (const k in cfg.slots) {
+    const d = cfg.slots[k];
+    SLOTS[k] = { label: d.label, slots: d.slots.map(s => ({
+      from: toMin(s.from), to: toMin(s.to),
+      promo: s.promo, discount: s.discount, hourly: !!s.hourly,
+      desc: genDesc(s),
+    })) };
+  }
+}
+
+async function loadConfig() {
+  let cfg = clone(DEFAULT_CONFIG);
+  try {
+    const r = await fetch("config.json", { cache: "no-store" });
+    if (r.ok) cfg = await r.json();
+  } catch (e) { /* 本機開啟或無 config.json，用預設 */ }
+  try {
+    const local = localStorage.getItem(LS_KEY);
+    if (local) cfg = JSON.parse(local);
+  } catch (e) { /* 略過損壞的本機設定 */ }
+  return cfg;
+}
+
+// ==== 工具函式 ====
 function inSlot(minute, slot) {
   if (slot.from <= slot.to) return minute >= slot.from && minute <= slot.to;
-  // 跨午夜
-  return minute >= slot.from || minute <= slot.to;
+  return minute >= slot.from || minute <= slot.to; // 跨午夜
 }
 function findSlot(dayKey, minute) {
   const day = SLOTS[dayKey];
   return day.slots.find(s => inSlot(minute, s)) || day.slots[0];
 }
-// 逐分鐘計算包廂費。
-// 「買二送 N」由進場時段決定免費規則：每 (2+N) 小時的前 2 小時計費、其餘免費。
+// 逐分鐘計算包廂費。「買二送 N」由進場時段決定免費規則：每 (2+N) 小時的前 2 小時計費、其餘免費。
 // 計費的每一分鐘，依其實際落點時段套用該時段折數（跨時段每分鐘價差）。
 function computeRoom(room, dayKey, entryMinute, hours, entrySlot, companyRate) {
   const totalMin = hours * 60;
-  const perMin = room.room / 60;            // 每分鐘原價
+  const perMin = room.room / 60;
   const blockMin = entrySlot.hourly ? Infinity : (2 + entrySlot.promo) * 60;
   let chargedMin = 0, roomBase = 0, roomAfterSlot = 0;
-  const bands = {};                          // 依時段折數分組統計計費分鐘
+  const bands = {};
   for (let i = 0; i < totalMin; i++) {
     const charged = entrySlot.hourly ? true : (i % blockMin) < 120;
     if (!charged) continue;
-    const tod = (entryMinute + i) % 1440;    // 當下時刻（跨午夜回繞）
+    const tod = (entryMinute + i) % 1440;
     const s = findSlot(dayKey, tod);
     chargedMin++;
     roomBase += perMin;
@@ -308,83 +482,79 @@ function cleaningRate(dayKey, minute) {
   return (minute >= t(8,0) && minute <= t(16,59)) ? 0.5 : 1;
 }
 function money(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
-
-// ---- 建立下拉選單 ----
-const peopleSel = document.getElementById("people");
-for (let i = 1; i <= 30; i++) {
-  peopleSel.add(new Option(i + " 人", i));
-}
-peopleSel.value = 6;
-
-const roomSel = document.getElementById("room");
-ROOMS.forEach(r => roomSel.add(new Option(`${r.name}（${r.min}~${r.max}人）`, r.key)));
-
-// 時數下拉選單僅供「鐘點計價」時段使用（無固定方案時數）
-const hoursSel = document.getElementById("hours");
-for (let i = 1; i <= 12; i++) hoursSel.add(new Option(i + " 小時", i));
-hoursSel.value = 4;
-
 // 方案歡唱時數：買二送 N => 共 2+N 小時；鐘點計價無固定方案時數
-function planHours(slot) {
-  return slot.hourly ? null : 2 + slot.promo;
-}
+function planHours(slot) { return slot.hourly ? null : 2 + slot.promo; }
 
+// ==== DOM 與下拉選單 ====
+const peopleSel = document.getElementById("people");
+const roomSel = document.getElementById("room");
+const hoursSel = document.getElementById("hours");
 const companySel = document.getElementById("company");
-COMPANIES.forEach((c, i) => companySel.add(new Option(c.name, i)));
 
-// 依人數自動選包廂
+function buildPeople() {
+  peopleSel.innerHTML = "";
+  for (let i = 1; i <= 30; i++) peopleSel.add(new Option(i + " 人", i));
+  peopleSel.value = 6;
+}
+function buildHours() {
+  hoursSel.innerHTML = "";
+  for (let i = 1; i <= 12; i++) hoursSel.add(new Option(i + " 小時", i));
+  hoursSel.value = 4;
+}
+function buildRoomSelect() {
+  const cur = roomSel.value;
+  roomSel.innerHTML = "";
+  ROOMS.forEach(r => roomSel.add(new Option(`${r.name}（${r.min}~${r.max}人）`, r.key)));
+  if (ROOMS.some(r => r.key === cur)) roomSel.value = cur;
+}
+function buildCompanySelect() {
+  roomSel; // noop
+  companySel.innerHTML = "";
+  COMPANIES.forEach((c, i) => companySel.add(new Option(c.name, i)));
+  companySel.value = 0;
+}
 function autoRoom() {
   const p = parseInt(peopleSel.value, 10);
   const r = ROOMS.find(r => p <= r.max) || ROOMS[ROOMS.length - 1];
   roomSel.value = r.key;
 }
-autoRoom();
 
-// ---- 計算 ----
+// ==== 計算 ====
 function calc() {
   const people = parseInt(peopleSel.value, 10);
   const room = ROOMS.find(r => r.key === roomSel.value);
   const dayKey = document.getElementById("day").value;
-  const company = COMPANIES[parseInt(companySel.value, 10)];
+  const company = COMPANIES[parseInt(companySel.value, 10)] || COMPANIES[0];
 
   const [hh, mm] = document.getElementById("entry").value.split(":").map(Number);
   const minute = hh * 60 + mm;
-  const entrySlot = findSlot(dayKey, minute);     // 進場時段（決定買二送N規則）
+  const entrySlot = findSlot(dayKey, minute);
 
-  // 歡唱時數：方案時段自動帶入（2+N）；鐘點計價時段才由使用者下拉自選
   const isHourly = !!entrySlot.hourly;
   const hoursDisplay = document.getElementById("hoursDisplay");
   hoursDisplay.style.display = isHourly ? "none" : "block";
   hoursSel.style.display = isHourly ? "block" : "none";
   const hours = isHourly ? parseInt(hoursSel.value, 10) : planHours(entrySlot);
 
-  // 包廂費（逐分鐘、跨時段價差）
   const r = computeRoom(room, dayKey, minute, hours, entrySlot, company.rate);
   const roomBase = r.roomBase, roomAfterSlot = r.roomAfterSlot, roomFinal = r.roomFinal;
   const billable = r.chargedMin / 60;
 
-  // 清潔費（依進場時間判定，一次性）
   const cRate = cleaningRate(dayKey, minute);
   const cleanFinal = room.clean * cRate;
 
-  // 服務費：(包廂原價 × 計費時數 + 清潔原價) × 10%
-  // 贈送的免費時數不算服務費；計費時數即「買二」的時數（鐘點計價則為實際時數）
   const serviceBase = room.room * billable + room.clean;
   const service = serviceBase * 0.10;
 
   const total = roomFinal + cleanFinal + service;
   const per = total / people;
 
-  // ---- 顯示時段資訊 ----
   const fmtH = n => Number.isInteger(n) ? n : n.toFixed(1);
-  const bandText = r.bands
-    .map(b => `${b.desc.split("・")[1] || b.desc}（${fmtH(b.min/60)}時）`)
-    .join("、");
+  const bandText = r.bands.map(b => `${b.desc.split("・")[1] || b.desc}（${fmtH(b.min/60)}時）`).join("、");
   const exitMin = (minute + hours * 60) % 1440;
   const crossDay = minute + hours * 60 >= 1440;
   const exitStr = String(Math.floor(exitMin/60)).padStart(2,"0") + ":" + String(exitMin%60).padStart(2,"0");
 
-  // 歡唱時數顯示框（方案時段自動帶入）／提示
   hoursDisplay.textContent = `${fmtH(hours)} 小時`;
   document.getElementById("hoursHint").textContent = isHourly
     ? "鐘點計價時段，請自選時數"
@@ -398,7 +568,6 @@ function calc() {
     (r.freeMin > 0 ? ` ＋免費 ${fmtH(r.freeMin/60)} 時` : "") + `</span></div>` +
     (r.bands.length > 1 ? `<div class="hint">跨時段計費：${bandText}</div>` : "");
 
-  // ---- 結果 ----
   document.getElementById("perPerson").innerHTML = money(per) + "<small>/人</small>";
   document.getElementById("perSub").textContent = `總計 ${money(total)} ÷ ${people} 人`;
 
@@ -406,9 +575,7 @@ function calc() {
   const roomStrike = roomDiscounted ? `<span class="strike">${money(roomBase)}</span>` : "";
   const cleanStrike = cRate < 1 ? `<span class="strike">${money(room.clean)}</span>` : "";
 
-  const bandNote = r.bands
-    .map(b => `${(b.desc.split("・")[1] || b.desc)} ${fmtH(b.min/60)}時`)
-    .join("、");
+  const bandNote = r.bands.map(b => `${(b.desc.split("・")[1] || b.desc)} ${fmtH(b.min/60)}時`).join("、");
   const compNote = company.rate < 1
     ? `<span class="note">時段折後 ${money(roomAfterSlot)} × 企業 ${company.rate*10}折 = ${money(roomFinal)}</span>` : "";
 
@@ -438,13 +605,147 @@ function calc() {
      </div>`;
 }
 
-// ---- 事件 ----
+// ==== 設定面板 ====
+const overlay = document.getElementById("overlay");
+
+function roomRow(r) {
+  return `<div class="set-room" data-key="${r.key}">
+    <input data-f="name" value="${r.name}">
+    <div class="mini">
+      <label>包廂費/時 <input type="number" data-f="room" value="${r.room}"></label>
+      <label>清潔費 <input type="number" data-f="clean" value="${r.clean}"></label>
+      <label>人數 <input type="number" data-f="min" value="${r.min}"> ~ <input type="number" data-f="max" value="${r.max}"></label>
+    </div>
+  </div>`;
+}
+function compRow(c) {
+  return `<div class="set-comp">
+    <input data-f="name" value="${c.name}" placeholder="公司名稱">
+    <label>折數 <input type="number" data-f="rate" value="${Math.round(c.rate*100)}">%</label>
+    <button type="button" class="btn btn-del btn-sm" onclick="this.closest('.set-comp').remove()">✕</button>
+  </div>`;
+}
+function slotRow(s) {
+  return `<div class="set-slot">
+    <input type="time" data-f="from" value="${s.from}">~<input type="time" data-f="to" value="${s.to}">
+    <label><input type="checkbox" data-f="hourly" ${s.hourly?"checked":""}> 鐘點計價</label>
+    <label>送 <input type="number" data-f="promo" value="${s.promo!=null?s.promo:2}" min="0"> 時</label>
+    <label>折 <input type="number" data-f="discount" value="${Math.round(s.discount*100)}">%</label>
+  </div>`;
+}
+
+function openSettings() {
+  document.getElementById("setRooms").innerHTML = CONFIG.rooms.map(roomRow).join("");
+  document.getElementById("setCompanies").innerHTML = CONFIG.companies.map(compRow).join("");
+  document.getElementById("setSlots").innerHTML = DAY_ORDER.map(day => {
+    const d = CONFIG.slots[day];
+    return `<div class="set-day" data-day="${day}" data-label="${d.label}">
+      <h4>${d.label}</h4>${d.slots.map(slotRow).join("")}</div>`;
+  }).join("");
+  document.getElementById("exportBox").value = JSON.stringify(CONFIG, null, 2);
+  document.getElementById("importBox").value = "";
+  overlay.classList.add("open");
+}
+function closeSettings() { overlay.classList.remove("open"); }
+
+function readSettings() {
+  const cfg = { rooms: [], companies: [], slots: {} };
+  document.querySelectorAll("#setRooms .set-room").forEach(row => {
+    const g = f => row.querySelector(`[data-f=${f}]`);
+    cfg.rooms.push({
+      key: row.dataset.key,
+      name: g("name").value.trim(),
+      min: +g("min").value, max: +g("max").value,
+      room: +g("room").value, clean: +g("clean").value,
+    });
+  });
+  document.querySelectorAll("#setCompanies .set-comp").forEach(row => {
+    const name = row.querySelector("[data-f=name]").value.trim();
+    if (!name) return;
+    cfg.companies.push({ name, rate: (+row.querySelector("[data-f=rate]").value) / 100 });
+  });
+  if (!cfg.companies.length) cfg.companies.push({ name: "無（一般價）", rate: 1 });
+  document.querySelectorAll("#setSlots .set-day").forEach(dayEl => {
+    const slots = [];
+    dayEl.querySelectorAll(".set-slot").forEach(s => {
+      const g = f => s.querySelector(`[data-f=${f}]`);
+      const hourly = g("hourly").checked;
+      const o = { from: g("from").value, to: g("to").value, discount: (+g("discount").value) / 100 };
+      if (hourly) o.hourly = true; else o.promo = +g("promo").value;
+      slots.push(o);
+    });
+    cfg.slots[dayEl.dataset.day] = { label: dayEl.dataset.label, slots };
+  });
+  return cfg;
+}
+
+function refreshAll() {
+  buildRoomSelect();
+  buildCompanySelect();
+  autoRoom();
+  calc();
+}
+
+function saveSettings() {
+  const cfg = readSettings();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)); } catch (e) {}
+  applyConfig(cfg);
+  refreshAll();
+  closeSettings();
+}
+
+// ==== 事件綁定 ====
+document.getElementById("gearBtn").addEventListener("click", openSettings);
+document.getElementById("closeSettings").addEventListener("click", closeSettings);
+overlay.addEventListener("click", e => { if (e.target === overlay) closeSettings(); });
+document.getElementById("saveSettings").addEventListener("click", saveSettings);
+document.getElementById("addCompany").addEventListener("click", () => {
+  document.getElementById("setCompanies").insertAdjacentHTML("beforeend", compRow({ name: "", rate: 0.9 }));
+});
+document.getElementById("copyExport").addEventListener("click", () => {
+  const box = document.getElementById("exportBox");
+  box.value = JSON.stringify(readSettings(), null, 2); // 以目前面板內容為準
+  box.select();
+  navigator.clipboard.writeText(box.value).then(
+    () => { const b = document.getElementById("copyExport"); b.textContent = "✓ 已複製"; setTimeout(() => b.textContent = "📋 複製設定碼", 1500); },
+    () => document.execCommand("copy")
+  );
+});
+document.getElementById("applyImport").addEventListener("click", () => {
+  const txt = document.getElementById("importBox").value.trim();
+  if (!txt) return;
+  try {
+    const cfg = JSON.parse(txt);
+    localStorage.setItem(LS_KEY, JSON.stringify(cfg));
+    applyConfig(cfg);
+    refreshAll();
+    openSettings();
+    alert("已匯入並套用。");
+  } catch (e) { alert("設定碼格式錯誤，請確認是完整的 JSON。"); }
+});
+document.getElementById("resetSettings").addEventListener("click", async () => {
+  if (!confirm("確定重設為預設／官方價目表？將清除本機修改。")) return;
+  localStorage.removeItem(LS_KEY);
+  applyConfig(await loadConfig());
+  refreshAll();
+  openSettings();
+});
+
 peopleSel.addEventListener("change", () => { autoRoom(); calc(); });
 ["room","day","entry","hours","company"].forEach(id =>
   document.getElementById(id).addEventListener("change", calc));
 document.getElementById("entry").addEventListener("input", calc);
 
-calc();
+// ==== 啟動 ====
+(async function init() {
+  buildPeople();
+  buildHours();
+  applyConfig(await loadConfig());
+  buildRoomSelect();
+  buildCompanySelect();
+  autoRoom();
+  calc();
+})();
 </script>
 </body>
 </html>

@@ -1,0 +1,39 @@
+{
+  "rooms": [
+    { "key": "small",  "name": "小包廂",   "min": 3,  "max": 4,  "room": 600,  "clean": 400 },
+    { "key": "medium", "name": "中包廂",   "min": 5,  "max": 7,  "room": 800,  "clean": 400 },
+    { "key": "large",  "name": "大包廂",   "min": 8,  "max": 12, "room": 1000, "clean": 500 },
+    { "key": "xl",     "name": "特大包廂", "min": 13, "max": 15, "room": 1300, "clean": 600 },
+    { "key": "vip",    "name": "VIP包廂",  "min": 16, "max": 30, "room": 1500, "clean": 600 }
+  ],
+  "companies": [
+    { "name": "無（一般價）", "rate": 1 },
+    { "name": "台中美光（85 折）", "rate": 0.85 }
+  ],
+  "slots": {
+    "weekday": { "label": "平日（星期一~四）", "slots": [
+      { "from": "08:00", "to": "12:59", "promo": 2, "discount": 0.3 },
+      { "from": "13:00", "to": "18:59", "promo": 2, "discount": 0.5 },
+      { "from": "19:00", "to": "00:59", "promo": 3, "discount": 0.7 },
+      { "from": "01:00", "to": "07:59", "promo": 3, "discount": 0.6 }
+    ]},
+    "friday": { "label": "星期五（例假日前夕）", "slots": [
+      { "from": "08:00", "to": "12:59", "promo": 2, "discount": 0.3 },
+      { "from": "13:00", "to": "18:59", "promo": 2, "discount": 0.5 },
+      { "from": "19:00", "to": "01:59", "hourly": true, "discount": 0.8 },
+      { "from": "02:00", "to": "07:59", "promo": 3, "discount": 0.7 }
+    ]},
+    "saturday": { "label": "星期六（連續假日）", "slots": [
+      { "from": "08:00", "to": "12:59", "promo": 2, "discount": 0.5 },
+      { "from": "13:00", "to": "16:59", "promo": 2, "discount": 0.6 },
+      { "from": "17:00", "to": "18:59", "promo": 1, "discount": 0.6 },
+      { "from": "19:00", "to": "07:59", "hourly": true, "discount": 1.0 }
+    ]},
+    "sunday": { "label": "星期日（國定假日當天）", "slots": [
+      { "from": "08:00", "to": "12:59", "promo": 2, "discount": 0.5 },
+      { "from": "13:00", "to": "18:59", "promo": 2, "discount": 0.6 },
+      { "from": "19:00", "to": "00:59", "promo": 2, "discount": 0.7 },
+      { "from": "01:00", "to": "07:59", "promo": 3, "discount": 0.6 }
+    ]}
+  }
+}
