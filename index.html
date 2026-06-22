@@ -491,7 +491,7 @@ const BRANDS = [
     defaultConfig: null,
     rules: [
       "包廂計費：每小時單價（依時段）× 歡唱時數，跨時段以分鐘分別套各時段單價。",
-      "人數計費：每人方案價（含方案歡唱時數）× 人數；以進場時段方案計，僅計方案內時數。",
+      "人數計費：每人方案價 × 人數，以進場時段方案計；23:00 後進場為「可歡唱至 05:30」，時數依進場時間自動計。歡唱費最低以 2 人計，VIP 包廂不適用。",
       "餐飲基本消費每人 $100；服務費為「折扣前」歡唱費加低消的 10%（外加，會員日折扣不影響服務費）。",
       "會員日歡唱費折扣依進場時間：06:00-18:59 進場 5 折、19:00-次日05:59 進場 8 折；VIP 包廂不適用。",
       "會員日與企業 9 折等優惠不可並用（擇一）；每卡每日限一次、新辦卡當日不可用、停班停課日暫停。",
@@ -800,12 +800,27 @@ function calcHoliday() {
     const slot = hSlot(day.slots, minute);
     hoursDisplay.style.display = "block";
     hoursSel.style.display = "none";
-    singHours = slot.hours;
+    // 時數：有固定 hours 用之；否則「可歡唱至 until」依進場時間算到該結束時刻
+    if (slot.hours != null) {
+      singHours = slot.hours;
+    } else if (slot.until) {
+      const endMin = toMin(slot.until);
+      let diff = endMin - minute;
+      if (diff <= 0) diff += 1440;                   // 跨午夜
+      singHours = diff / 60;
+    } else {
+      singHours = 0;
+    }
     hoursDisplay.textContent = `${fmtH(singHours)} 小時`;
-    singBase = slot.price * people;                  // 折扣前歡唱費（每人方案 × 人數）
+    // 歡唱費最低以 2 人計（官網註2）
+    const billPeople = Math.max(people, 2);
+    singBase = slot.price * billPeople;              // 折扣前歡唱費（每人方案 × 計費人數）
     singFee = singBase * discRate;
-    planNote = `${slot.from}~${slot.to}｜每人 $${slot.price} × ${people} 人（方案 ${fmtH(singHours)}H）` +
-               (slot.note ? `<br><span class="hint">※ ${slot.note}</span>` : "");
+    planNote = `${slot.from}~${slot.to}｜每人 $${slot.price} × ${billPeople} 人` +
+               (billPeople !== people ? "（最低2人計）" : "") +
+               (slot.until ? `（可唱至 ${slot.until}）` : `（方案 ${fmtH(singHours)}H）`) +
+               (slot.note ? `<br><span class="hint">※ ${slot.note}</span>` : "") +
+               (room.key === "vip" ? `<br><span class="hint">※ VIP 包廂不適用人數計費，請改用包廂計費</span>` : "");
   }
 
   const lowFee = low * people;                       // 餐飲基本消費
