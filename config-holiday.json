@@ -1,0 +1,60 @@
+{
+  "lowSpendPerPerson": 100,
+  "serviceRate": 0.10,
+  "rooms": [
+    { "key": "small",  "name": "小包廂",   "min": 2,  "max": 5 },
+    { "key": "medium", "name": "中包廂",   "min": 6,  "max": 10 },
+    { "key": "large",  "name": "大包廂",   "min": 11, "max": 16 },
+    { "key": "xl",     "name": "特大包廂", "min": 17, "max": 24 },
+    { "key": "vip",    "name": "VIP包廂",  "min": 25, "max": 35 }
+  ],
+  "companies": [
+    { "name": "無（一般價）", "rate": 1 },
+    { "name": "台中美光（9 折）", "rate": 0.9 }
+  ],
+  "memberDayRate": 0.5,
+  "roomPricing": {
+    "weekday": { "label": "平日（一~四）", "slots": [
+      { "from": "15:00", "to": "18:59", "prices": { "small": 380, "medium": 490, "large": 650, "xl": 810, "vip": 1250 } },
+      { "from": "19:00", "to": "22:59", "prices": { "small": 532, "medium": 686, "large": 910, "xl": 1134, "vip": 1750 } },
+      { "from": "23:00", "to": "05:59", "prices": { "small": 456, "medium": 588, "large": 780, "xl": 972, "vip": 1500 } }
+    ]},
+    "friday": { "label": "週五（例假日前夕）", "slots": [
+      { "from": "15:00", "to": "18:59", "prices": { "small": 456, "medium": 588, "large": 780, "xl": 972, "vip": 1500 } },
+      { "from": "19:00", "to": "22:59", "prices": { "small": 684, "medium": 882, "large": 1170, "xl": 1458, "vip": 2250 } },
+      { "from": "23:00", "to": "05:59", "prices": { "small": 608, "medium": 784, "large": 1040, "xl": 1296, "vip": 2000 } }
+    ]},
+    "saturday": { "label": "週六（連續假日）", "slots": [
+      { "from": "12:30", "to": "18:59", "prices": { "small": 532, "medium": 686, "large": 910, "xl": 1134, "vip": 1750 } },
+      { "from": "19:00", "to": "22:59", "prices": { "small": 760, "medium": 980, "large": 1300, "xl": 1620, "vip": 2500 } },
+      { "from": "23:00", "to": "05:59", "prices": { "small": 760, "medium": 980, "large": 1300, "xl": 1620, "vip": 2500 } }
+    ]},
+    "sunday": { "label": "週日（例假日）", "slots": [
+      { "from": "12:30", "to": "18:59", "prices": { "small": 532, "medium": 686, "large": 910, "xl": 1134, "vip": 1750 } },
+      { "from": "19:00", "to": "22:59", "prices": { "small": 532, "medium": 686, "large": 910, "xl": 1134, "vip": 1750 } },
+      { "from": "23:00", "to": "05:59", "prices": { "small": 456, "medium": 588, "large": 780, "xl": 972, "vip": 1500 } }
+    ]}
+  },
+  "personPricing": {
+    "weekday": { "label": "平日（一~四）", "slots": [
+      { "from": "15:00", "to": "18:59", "price": 270, "hours": 4 },
+      { "from": "19:00", "to": "22:59", "price": 340, "hours": 3 },
+      { "from": "23:00", "to": "05:59", "price": 340, "hours": 6.5, "note": "可歡唱至05:30" }
+    ]},
+    "friday": { "label": "週五（例假日前夕）", "slots": [
+      { "from": "15:00", "to": "18:59", "price": 290, "hours": 4 },
+      { "from": "19:00", "to": "22:59", "price": 410, "hours": 3, "note": "19:00後在場續唱每人每時$100" },
+      { "from": "23:00", "to": "05:59", "price": 410, "hours": 6.5, "note": "可歡唱至05:30" }
+    ]},
+    "saturday": { "label": "週六（連續假日）", "slots": [
+      { "from": "12:30", "to": "18:59", "price": 310, "hours": 3, "note": "19:00後在場續唱每人每時$100" },
+      { "from": "19:00", "to": "22:59", "price": 440, "hours": 3, "note": "19:00後在場續唱每人每時$100" },
+      { "from": "23:00", "to": "05:59", "price": 440, "hours": 6.5, "note": "可歡唱至05:30" }
+    ]},
+    "sunday": { "label": "週日（例假日）", "slots": [
+      { "from": "12:30", "to": "18:59", "price": 310, "hours": 4 },
+      { "from": "19:00", "to": "22:59", "price": 340, "hours": 3 },
+      { "from": "23:00", "to": "05:59", "price": 340, "hours": 6.5, "note": "可歡唱至05:30" }
+    ]}
+  }
+}

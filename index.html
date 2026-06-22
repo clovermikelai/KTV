@@ -283,6 +283,15 @@
   </header>
 
   <div class="card">
+    <!-- 好樂迪專用：計費模式切換 -->
+    <div class="field" id="modeField" style="display:none">
+      <label for="mode">計費方式</label>
+      <select id="mode">
+        <option value="room">包廂計費（每小時）</option>
+        <option value="person">人數計費（每人包方案）</option>
+      </select>
+    </div>
+
     <div class="row">
       <div class="field">
         <label for="people">人數</label>
@@ -320,7 +329,16 @@
     <div class="field">
       <label for="company">企業合作優惠</label>
       <select id="company"></select>
-      <div class="hint">企業折扣只套用於「包廂費」，且在時段折扣之後再打折。</div>
+      <div class="hint" id="companyHint">企業折扣只套用於「包廂費」，且在時段折扣之後再打折。</div>
+    </div>
+
+    <!-- 好樂迪專用：會員日 5 折歡唱費 -->
+    <div class="field" id="memberDayField" style="display:none">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="memberDay" style="width:auto;">
+        今日為會員日（歡唱費 5 折）
+      </label>
+      <div class="hint">會員日 5 折與企業折扣不可並用；勾選後將忽略企業折扣。會員日日期每年由官網公告。</div>
     </div>
   </div>
 
@@ -463,15 +481,21 @@ const BRANDS = [
     key: "holiday",
     name: "好樂迪",
     icon: "🎵",
-    ready: false,                       // 尚未提供價目，先佔位
+    ready: true,
     engine: "holiday",
     theme: { primary:"#f57c00", primaryDark:"#e65100", bg:"#fff8f0", line:"#ffe0c0", accent:"#fff3e0" },
     title: "🎶 好樂迪 KTV 分帳計算機",
-    subtitle: "（即將推出）",
-    store: { name:"", phone:"", addr:"" },
+    subtitle: "選計費方式、人數、日期與進場時間，自動算出每人費用",
+    store: { name:"向陽店（V-MIX向陽）", phone:"04-2528-8653", addr:"臺中市豐原區向陽路 77 號 1-3 樓" },
     configFile: "config-holiday.json",
     defaultConfig: null,
-    rules: [],
+    rules: [
+      "包廂計費：每小時單價（依進場時段）× 歡唱時數。",
+      "人數計費：每人方案價（含方案歡唱時數）× 人數；僅計方案內時數。",
+      "餐飲基本消費每人 $100；服務費為全部金額的 10%（外加）。",
+      "會員日歡唱費 5 折、台中美光企業 9 折，兩者擇一不可並用。",
+      "時段定義：連假比照週六、例假日前夕比照週五、例假日比照週日；實際以門市現場為準。",
+    ],
   },
 ];
 
@@ -481,6 +505,7 @@ const BRANDS = [
 const clone = o => JSON.parse(JSON.stringify(o));
 let CURRENT_BRAND = BRANDS[0];
 let CONFIG, ROOMS, COMPANIES, SLOTS;
+let HCONFIG = null;  // 好樂迪設定（loadConfig 載入後存於此）
 
 const ZH = ["零","一","二","三","四","五","六","七","八","九","十"];
 const DAY_ORDER = ["weekday", "friday", "saturday", "sunday"];
@@ -612,6 +637,7 @@ function autoRoom() {
 //  計算與輸出
 // ============================================================
 function calc() {
+  if (CURRENT_BRAND.engine === "holiday") { calcHoliday(); return; }
   const people = parseInt(peopleSel.value, 10);
   const room = ROOMS.find(r => r.key === roomSel.value);
   const dayKey = document.getElementById("day").value;
@@ -697,6 +723,128 @@ function calc() {
 }
 
 // ============================================================
+//  計費引擎（好樂迪）
+// ============================================================
+// 找好樂迪時段（支援跨午夜）
+function hSlot(slots, minute) {
+  return slots.find(s => {
+    const f = toMin(s.from), tt = toMin(s.to);
+    return f <= tt ? (minute >= f && minute <= tt) : (minute >= f || minute <= tt);
+  }) || slots[0];
+}
+
+function calcHoliday() {
+  const cfg = HCONFIG;
+  const people = parseInt(peopleSel.value, 10);
+  const roomKey = roomSel.value;
+  const room = cfg.rooms.find(r => r.key === roomKey) || cfg.rooms[0];
+  const dayKey = document.getElementById("day").value;
+  const mode = document.getElementById("mode").value;   // room | person
+  const memberDay = document.getElementById("memberDay").checked;
+  const company = cfg.companies[parseInt(companySel.value, 10)] || cfg.companies[0];
+  const [hh, mm] = document.getElementById("entry").value.split(":").map(Number);
+  const minute = hh * 60 + mm;
+  const low = cfg.lowSpendPerPerson || 0;
+  const svcRate = cfg.serviceRate || 0;
+
+  // 折扣：會員日5折 與 企業折扣 擇一（會員日優先，且兩者不可並用）
+  let discRate = 1, discLabel = "";
+  if (memberDay) { discRate = cfg.memberDayRate || 0.5; discLabel = `會員日 ${discRate*10}折`; }
+  else if (company.rate < 1) { discRate = company.rate; discLabel = `${company.name}`; }
+
+  const fmtH = n => Number.isInteger(n) ? n : n.toFixed(1);
+  let singHours, singFee, singBase, planNote = "", entryStr = document.getElementById("entry").value;
+
+  // 時數欄顯示控制（好樂迪：包廂計費可自選時數；人數計費為方案固定時數）
+  const hoursDisplay = document.getElementById("hoursDisplay");
+
+  if (mode === "room") {
+    const day = cfg.roomPricing[dayKey];
+    const slot = hSlot(day.slots, minute);
+    const perHour = slot.prices[room.key];
+    hoursDisplay.style.display = "none";
+    hoursSel.style.display = "block";
+    singHours = parseInt(hoursSel.value, 10);
+    singBase = perHour * singHours;                  // 折扣前歡唱費（整間）
+    singFee = singBase * discRate;
+    planNote = `${slot.from}~${slot.to}｜${perHour}/時 × ${fmtH(singHours)} 時`;
+  } else {
+    const day = cfg.personPricing[dayKey];
+    const slot = hSlot(day.slots, minute);
+    hoursDisplay.style.display = "block";
+    hoursSel.style.display = "none";
+    singHours = slot.hours;
+    hoursDisplay.textContent = `${fmtH(singHours)} 小時`;
+    singBase = slot.price * people;                  // 折扣前歡唱費（每人方案 × 人數）
+    singFee = singBase * discRate;
+    planNote = `${slot.from}~${slot.to}｜每人 $${slot.price} × ${people} 人（方案 ${fmtH(singHours)}H）` +
+               (slot.note ? `<br><span class="hint">※ ${slot.note}</span>` : "");
+  }
+
+  const lowFee = low * people;                       // 餐飲基本消費
+  const service = (singFee + lowFee) * svcRate;      // 服務費：全部金額的 10%
+  const total = singFee + lowFee + service;
+  const per = total / people;
+
+  // 離場時間
+  const exitMin = (minute + Math.round(singHours * 60)) % 1440;
+  const crossDay = minute + singHours * 60 >= 1440;
+  const exitStr = String(Math.floor(exitMin/60)).padStart(2,"0") + ":" + String(exitMin%60).padStart(2,"0");
+
+  document.getElementById("hoursHint").textContent =
+    mode === "room" ? "包廂計費：請自選歡唱時數" : "人數計費：方案固定時數";
+
+  document.getElementById("slot").innerHTML =
+    `<div>📅 <b>${(cfg[mode==="room"?"roomPricing":"personPricing"][dayKey]||{}).label||""}</b>　` +
+    `${mode==="room"?"🏠 包廂計費":"👥 人數計費"}</div>` +
+    `<div>🕒 進場 <b>${entryStr}</b> → 離場 <b>${exitStr}</b>${crossDay?"（隔日）":""}　🎶 歡唱 <b>${fmtH(singHours)} 小時</b></div>` +
+    `<div>${planNote}</div>` +
+    (discLabel ? `<div><span class="tag">${discLabel}</span></div>` : "");
+
+  document.getElementById("perPerson").innerHTML = money(per) + "<small>/人</small>";
+  document.getElementById("perSub").textContent = `總計 ${money(total)} ÷ ${people} 人`;
+
+  const singStrike = discRate < 1 ? `<span class="strike">${money(singBase)}</span>` : "";
+  document.getElementById("breakdown").innerHTML =
+    `<div class="line">
+       <span class="label-cell">歡唱費${mode==="person"?"（人數計費）":"（包廂計費）"}
+         <span class="note">${planNote}${discLabel?`　×　${discLabel}`:""}</span>
+       </span>
+       <span class="val">${singStrike}${money(singFee)}</span>
+     </div>
+     <div class="line">
+       <span class="label-cell">餐飲基本消費
+         <span class="note">$${low}/人 × ${people} 人</span>
+       </span>
+       <span class="val">${money(lowFee)}</span>
+     </div>
+     <div class="line">
+       <span class="label-cell">服務費 ${svcRate*100}%
+         <span class="note">(歡唱費 + 餐飲低消) × ${svcRate*100}%</span>
+       </span>
+       <span class="val">${money(service)}</span>
+     </div>
+     <div class="line total"><span>總計</span><span class="val">${money(total)}</span></div>`;
+}
+
+function buildHolidayRoomSelect() {
+  const cur = roomSel.value;
+  roomSel.innerHTML = "";
+  HCONFIG.rooms.forEach(r => roomSel.add(new Option(`${r.name}（${r.min}~${r.max}人）`, r.key)));
+  if (HCONFIG.rooms.some(r => r.key === cur)) roomSel.value = cur;
+}
+function buildHolidayCompanySelect() {
+  companySel.innerHTML = "";
+  HCONFIG.companies.forEach((c, i) => companySel.add(new Option(c.name, i)));
+  companySel.value = 0;
+}
+function autoRoomHoliday() {
+  const p = parseInt(peopleSel.value, 10);
+  const r = HCONFIG.rooms.find(r => p <= r.max) || HCONFIG.rooms[HCONFIG.rooms.length - 1];
+  roomSel.value = r.key;
+}
+
+// ============================================================
 //  品牌切換
 // ============================================================
 function applyTheme(th) {
@@ -730,6 +878,16 @@ function applyBrandChrome(brand) {
     `https://github.com/${REPO}/edit/main/${brand.configFile}`;
   document.title = brand.name + " KTV 分帳計算機";
 }
+// 依品牌切換引擎專屬的 UI 控制項顯示
+function applyEngineUI(brand) {
+  const isHoliday = brand.engine === "holiday";
+  document.getElementById("modeField").style.display = isHoliday ? "" : "none";
+  document.getElementById("memberDayField").style.display = isHoliday ? "" : "none";
+  gearBtn.style.display = brand.engine === "superstar" ? "" : "none";
+  // 超級巨星專屬提示
+  document.getElementById("companyHint").style.display = isHoliday ? "none" : "";
+}
+
 async function selectBrand(key) {
   const brand = BRANDS.find(b => b.key === key);
   if (!brand) return;
@@ -742,8 +900,10 @@ async function selectBrand(key) {
   applyTheme(brand.theme);
   applyBrandChrome(brand);
   renderBrandTabs();
-  gearBtn.style.display = brand.engine === "superstar" ? "" : "none";
-  applyConfig(await loadConfig(brand));
+  applyEngineUI(brand);
+  const cfg = await loadConfig(brand);
+  if (brand.engine === "holiday") { HCONFIG = cfg; }
+  else { applyConfig(cfg); }
   refreshAll();
 }
 
@@ -822,6 +982,13 @@ function readSettings() {
 }
 
 function refreshAll() {
+  if (CURRENT_BRAND.engine === "holiday") {
+    buildHolidayRoomSelect();
+    buildHolidayCompanySelect();
+    autoRoomHoliday();
+    calc();
+    return;
+  }
   buildRoomSelect();
   buildCompanySelect();
   autoRoom();
@@ -876,8 +1043,11 @@ document.getElementById("resetSettings").addEventListener("click", async () => {
   openSettings();
 });
 
-peopleSel.addEventListener("change", () => { autoRoom(); calc(); });
-["room","day","entry","hours","company"].forEach(id =>
+peopleSel.addEventListener("change", () => {
+  if (CURRENT_BRAND.engine === "holiday") autoRoomHoliday(); else autoRoom();
+  calc();
+});
+["room","day","entry","hours","company","mode","memberDay"].forEach(id =>
   document.getElementById(id).addEventListener("change", calc));
 document.getElementById("entry").addEventListener("input", calc);
 
@@ -898,8 +1068,9 @@ document.getElementById("entry").addEventListener("input", calc);
   applyTheme(brand.theme);
   applyBrandChrome(brand);
   renderBrandTabs();
-  gearBtn.style.display = brand.engine === "superstar" ? "" : "none";
-  applyConfig(await loadConfig(brand));
+  applyEngineUI(brand);
+  const cfg = await loadConfig(brand);
+  if (brand.engine === "holiday") { HCONFIG = cfg; } else { applyConfig(cfg); }
   refreshAll();
 })();
 </script>
