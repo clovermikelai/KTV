@@ -269,6 +269,16 @@
     font-size: 0.8rem; color: var(--ink); margin-top: 8px; line-height: 1.6;
   }
   .sync-note b { color: var(--primary-dark); }
+  /* 好樂迪價目編輯表格 */
+  .htable-wrap { overflow-x: auto; margin-bottom: 8px; }
+  table.htable { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+  table.htable th, table.htable td {
+    border: 1px solid var(--line); padding: 4px 5px; text-align: center; white-space: nowrap;
+  }
+  table.htable th { background: var(--accent); color: var(--primary-dark); font-weight: 700; }
+  table.htable td.rowhead { background: var(--accent); color: var(--primary-dark); font-weight: 700; }
+  table.htable input { width: 64px; padding: 4px 5px; border: 1.5px solid var(--line); border-radius: 6px; font-size: 0.82rem; text-align: right; font-family: inherit; }
+  table.htable .daysep td { background: var(--bg); font-weight: 700; color: var(--primary-dark); text-align: left; }
 </style>
 </head>
 <body>
@@ -367,16 +377,30 @@
     <h2>⚙️ 價目表設定</h2>
     <p class="hint">修改後按「儲存」即時生效（存在本機瀏覽器）。要讓所有人都更新，請見最下方同步說明。</p>
 
-    <h3>包廂價格</h3>
-    <div id="setRooms"></div>
+    <!-- 超級巨星設定 -->
+    <div id="superstarSettings">
+      <h3>包廂價格</h3>
+      <div id="setRooms"></div>
 
-    <h3>企業合作優惠</h3>
-    <div id="setCompanies"></div>
-    <button class="btn btn-ghost btn-sm" id="addCompany" type="button">＋ 新增企業</button>
+      <h3>企業合作優惠</h3>
+      <div id="setCompanies"></div>
+      <button class="btn btn-ghost btn-sm" id="addCompany" type="button">＋ 新增企業</button>
 
-    <h3>時段折扣</h3>
-    <p class="hint">「送 N 小時」= 買二送 N（共 2+N 小時）。勾選「鐘點計價」則全時數計費、不送時數。折數填百分比（例：五折填 50、原價填 100）。</p>
-    <div id="setSlots"></div>
+      <h3>時段折扣</h3>
+      <p class="hint">「送 N 小時」= 買二送 N（共 2+N 小時）。勾選「鐘點計價」則全時數計費、不送時數。折數填百分比（例：五折填 50、原價填 100）。</p>
+      <div id="setSlots"></div>
+    </div>
+
+    <!-- 好樂迪設定（只改價格數字，表格仿官網） -->
+    <div id="holidaySettings" style="display:none">
+      <h3>包廂計費（元/每小時）</h3>
+      <p class="hint">依官網表格，欄為時段、列為包廂。直接修改金額即可。</p>
+      <div id="setHRoom" class="htable-wrap"></div>
+
+      <h3>人數計費（全民優惠價 元/每人）</h3>
+      <p class="hint">每人方案價。23:00 後時段為「可歡唱至 05:30」，時數自動計算。</p>
+      <div id="setHPerson" class="htable-wrap"></div>
+    </div>
 
     <h3>同步到 GitHub（讓所有人更新）— 操作 SOP</h3>
     <div class="sync-note">
@@ -887,6 +911,71 @@ function autoRoomHoliday() {
   roomSel.value = r.key;
 }
 
+// ---- 好樂迪設定面板（仿官網表格，只改價格數字）----
+const H_DAYS = ["weekday", "friday", "saturday", "sunday"];
+
+// 包廂計費表：每個日期一段，欄=時段、列=包廂
+function buildHRoomTable() {
+  const rp = HCONFIG.roomPricing;
+  let html = "";
+  H_DAYS.forEach(day => {
+    const d = rp[day]; if (!d) return;
+    const slots = d.slots;
+    html += `<table class="htable" data-day="${day}">
+      <tr><th>${d.label}</th>${slots.map(s => `<th>${s.from}~${s.to}</th>`).join("")}</tr>`;
+    HCONFIG.rooms.forEach(room => {
+      html += `<tr><td class="rowhead">${room.name}</td>` +
+        slots.map((s, si) =>
+          `<td><input type="number" data-day="${day}" data-slot="${si}" data-room="${room.key}" value="${s.prices[room.key]}"></td>`
+        ).join("") + `</tr>`;
+    });
+    html += `</table>`;
+  });
+  return html;
+}
+
+// 人數計費表：欄=時段、列=日期，輸入每人方案價
+function buildHPersonTable() {
+  const pp = HCONFIG.personPricing;
+  // 各日期時段數可能不同，逐日一列、顯示時段標籤+價格輸入
+  let html = `<table class="htable">`;
+  H_DAYS.forEach(day => {
+    const d = pp[day]; if (!d) return;
+    html += `<tr class="daysep"><td colspan="2">${d.label}</td></tr>`;
+    d.slots.forEach((s, si) => {
+      const meta = s.until ? `可唱至 ${s.until}` : `方案 ${s.hours}H`;
+      html += `<tr>
+        <td class="rowhead" style="text-align:left">${s.from}~${s.to}<br><span class="hint">${meta}</span></td>
+        <td><input type="number" data-day="${day}" data-slot="${si}" value="${s.price}"> 元/人</td>
+      </tr>`;
+    });
+  });
+  html += `</table>`;
+  return html;
+}
+
+function openHolidaySettings() {
+  document.getElementById("setHRoom").innerHTML = buildHRoomTable();
+  document.getElementById("setHPerson").innerHTML = buildHPersonTable();
+  document.getElementById("exportBox").value = JSON.stringify(HCONFIG, null, 2);
+  document.getElementById("importBox").value = "";
+  overlay.classList.add("open");
+}
+
+// 從面板讀回好樂迪設定（只改了價格，其餘沿用 HCONFIG）
+function readHolidaySettings() {
+  const cfg = clone(HCONFIG);
+  document.querySelectorAll("#setHRoom input[type=number]").forEach(inp => {
+    const { day, slot, room } = inp.dataset;
+    cfg.roomPricing[day].slots[+slot].prices[room] = +inp.value;
+  });
+  document.querySelectorAll("#setHPerson input[type=number]").forEach(inp => {
+    const { day, slot } = inp.dataset;
+    cfg.personPricing[day].slots[+slot].price = +inp.value;
+  });
+  return cfg;
+}
+
 // ============================================================
 //  品牌切換
 // ============================================================
@@ -926,9 +1015,11 @@ function applyEngineUI(brand) {
   const isHoliday = brand.engine === "holiday";
   document.getElementById("modeField").style.display = isHoliday ? "" : "none";
   document.getElementById("memberDayField").style.display = isHoliday ? "" : "none";
-  gearBtn.style.display = brand.engine === "superstar" ? "" : "none";
-  // 超級巨星專屬提示
+  gearBtn.style.display = "";   // 兩家都有設定面板
   document.getElementById("companyHint").style.display = isHoliday ? "none" : "";
+  // 設定面板：依品牌顯示對應區塊
+  document.getElementById("superstarSettings").style.display = isHoliday ? "none" : "";
+  document.getElementById("holidaySettings").style.display = isHoliday ? "" : "none";
 }
 
 async function selectBrand(key) {
@@ -979,6 +1070,7 @@ function slotRow(s) {
   </div>`;
 }
 function openSettings() {
+  if (CURRENT_BRAND.engine === "holiday") { openHolidaySettings(); return; }
   document.getElementById("setRooms").innerHTML = CONFIG.rooms.map(roomRow).join("");
   document.getElementById("setCompanies").innerHTML = CONFIG.companies.map(compRow).join("");
   document.getElementById("setSlots").innerHTML = DAY_ORDER.map(day => {
@@ -1039,6 +1131,14 @@ function refreshAll() {
 }
 
 function saveSettings() {
+  if (CURRENT_BRAND.engine === "holiday") {
+    const cfg = readHolidaySettings();
+    try { localStorage.setItem(lsKey(CURRENT_BRAND), JSON.stringify(cfg)); } catch (e) {}
+    HCONFIG = cfg;
+    refreshAll();
+    closeSettings();
+    return;
+  }
   const cfg = readSettings();
   try { localStorage.setItem(lsKey(CURRENT_BRAND), JSON.stringify(cfg)); } catch (e) {}
   applyConfig(cfg);
@@ -1058,7 +1158,7 @@ document.getElementById("addCompany").addEventListener("click", () => {
 });
 document.getElementById("copyExport").addEventListener("click", () => {
   const box = document.getElementById("exportBox");
-  box.value = JSON.stringify(readSettings(), null, 2);
+  box.value = JSON.stringify(CURRENT_BRAND.engine === "holiday" ? readHolidaySettings() : readSettings(), null, 2);
   box.select();
   navigator.clipboard.writeText(box.value).then(
     () => { const b = document.getElementById("copyExport"); b.textContent = "✓ 已複製"; setTimeout(() => b.textContent = "📋 複製設定碼", 1500); },
@@ -1071,7 +1171,7 @@ document.getElementById("applyImport").addEventListener("click", () => {
   try {
     const cfg = JSON.parse(txt);
     localStorage.setItem(lsKey(CURRENT_BRAND), JSON.stringify(cfg));
-    applyConfig(cfg);
+    if (CURRENT_BRAND.engine === "holiday") { HCONFIG = cfg; } else { applyConfig(cfg); }
     refreshAll();
     openSettings();
     alert("已匯入並套用。");
@@ -1081,7 +1181,8 @@ document.getElementById("resetSettings").addEventListener("click", async () => {
   if (!confirm("確定重設為預設／官方價目表？將清除本機修改。")) return;
   localStorage.removeItem(lsKey(CURRENT_BRAND));
   if (CURRENT_BRAND.key === "superstar") localStorage.removeItem("ktv_config_local");
-  applyConfig(await loadConfig(CURRENT_BRAND));
+  const cfg = await loadConfig(CURRENT_BRAND);
+  if (CURRENT_BRAND.engine === "holiday") { HCONFIG = cfg; } else { applyConfig(cfg); }
   refreshAll();
   openSettings();
 });
