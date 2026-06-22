@@ -10,6 +10,7 @@
   ],
   "companies": [
     { "name": "無（一般價）", "rate": 1 },
+    { "name": "威力卡（9 折）", "rate": 0.9 },
     { "name": "台中美光（9 折）", "rate": 0.9 }
   ],
   "memberDay": {
