@@ -336,9 +336,9 @@
     <div class="field" id="memberDayField" style="display:none">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="memberDay" style="width:auto;">
-        今日為會員日（歡唱費 5 折）
+        今日為會員日（歡唱費折扣）
       </label>
-      <div class="hint">會員日 5 折與企業折扣不可並用；勾選後將忽略企業折扣。會員日日期每年由官網公告。</div>
+      <div class="hint">會員日折扣依進場時間：06:00-18:59 進場 5 折、19:00 後 8 折；VIP 包廂不適用。與企業折扣不可並用（勾選後優先用會員日）。日期依官網公告。</div>
     </div>
   </div>
 
@@ -490,10 +490,11 @@ const BRANDS = [
     configFile: "config-holiday.json",
     defaultConfig: null,
     rules: [
-      "包廂計費：每小時單價（依進場時段）× 歡唱時數。",
-      "人數計費：每人方案價（含方案歡唱時數）× 人數；僅計方案內時數。",
-      "餐飲基本消費每人 $100；服務費為全部金額的 10%（外加）。",
-      "會員日歡唱費 5 折、台中美光企業 9 折，兩者擇一不可並用。",
+      "包廂計費：每小時單價（依時段）× 歡唱時數，跨時段以分鐘分別套各時段單價。",
+      "人數計費：每人方案價（含方案歡唱時數）× 人數；以進場時段方案計，僅計方案內時數。",
+      "餐飲基本消費每人 $100；服務費為「折扣前」歡唱費加低消的 10%（外加，會員日折扣不影響服務費）。",
+      "會員日歡唱費折扣依進場時間：06:00-18:59 進場 5 折、19:00-次日05:59 進場 8 折；VIP 包廂不適用。",
+      "會員日與企業 9 折等優惠不可並用（擇一）；每卡每日限一次、新辦卡當日不可用、停班停課日暫停。",
       "時段定義：連假比照週六、例假日前夕比照週五、例假日比照週日；實際以門市現場為準。",
     ],
   },
@@ -747,10 +748,21 @@ function calcHoliday() {
   const low = cfg.lowSpendPerPerson || 0;
   const svcRate = cfg.serviceRate || 0;
 
-  // 折扣：會員日5折 與 企業折扣 擇一（會員日優先，且兩者不可並用）
+  // 折扣：會員日 與 企業折扣 擇一（不可並用）。
+  // 會員日折扣率依「進場時間」：06:00-18:59 進場 5 折、19:00-次日05:59 進場 8 折；VIP 等包廂不適用。
+  const md = cfg.memberDay || { dayRate: 0.5, nightRate: 0.8, dayWindow: { from: "06:00", to: "18:59" }, excludeRooms: [] };
+  const mdExcluded = (md.excludeRooms || []).includes(room.key);
   let discRate = 1, discLabel = "";
-  if (memberDay) { discRate = cfg.memberDayRate || 0.5; discLabel = `會員日 ${discRate*10}折`; }
-  else if (company.rate < 1) { discRate = company.rate; discLabel = `${company.name}`; }
+  if (memberDay && !mdExcluded) {
+    const dw = { from: toMin(md.dayWindow.from), to: toMin(md.dayWindow.to) };
+    const inDay = dw.from <= dw.to ? (minute >= dw.from && minute <= dw.to) : (minute >= dw.from || minute <= dw.to);
+    discRate = inDay ? md.dayRate : md.nightRate;
+    discLabel = `會員日 ${Math.round(discRate*10)}折（${inDay ? "日間進場" : "夜間進場"}）`;
+  } else if (memberDay && mdExcluded) {
+    discLabel = `${room.name}不適用會員日`;
+  } else if (company.rate < 1) {
+    discRate = company.rate; discLabel = `${company.name}`;
+  }
 
   const fmtH = n => Number.isInteger(n) ? n : n.toFixed(1);
   let singHours, singFee, singBase, planNote = "", entryStr = document.getElementById("entry").value;
@@ -760,14 +772,25 @@ function calcHoliday() {
 
   if (mode === "room") {
     const day = cfg.roomPricing[dayKey];
-    const slot = hSlot(day.slots, minute);
-    const perHour = slot.prices[room.key];
     hoursDisplay.style.display = "none";
     hoursSel.style.display = "block";
     singHours = parseInt(hoursSel.value, 10);
-    singBase = perHour * singHours;                  // 折扣前歡唱費（整間）
+    // 逐分鐘跨時段計費：每一分鐘依其落點時段的每小時單價計
+    const totalMin = singHours * 60;
+    singBase = 0;
+    const bands = {};
+    for (let i = 0; i < totalMin; i++) {
+      const tod = (minute + i) % 1440;
+      const s = hSlot(day.slots, tod);
+      const perHour = s.prices[room.key];
+      singBase += perHour / 60;
+      const k = `${s.from}~${s.to}`;
+      const b = bands[k] || (bands[k] = { label: k, perHour, min: 0 });
+      b.min++;
+    }
     singFee = singBase * discRate;
-    planNote = `${slot.from}~${slot.to}｜${perHour}/時 × ${fmtH(singHours)} 時`;
+    planNote = Object.values(bands)
+      .map(b => `${b.label}｜${b.perHour}/時 × ${fmtH(b.min/60)} 時`).join("<br>");
   } else {
     const day = cfg.personPricing[dayKey];
     const slot = hSlot(day.slots, minute);
@@ -782,7 +805,8 @@ function calcHoliday() {
   }
 
   const lowFee = low * people;                       // 餐飲基本消費
-  const service = (singFee + lowFee) * svcRate;      // 服務費：全部金額的 10%
+  // 服務費以「折扣前」歡唱費 + 低消計算（實際帳單驗證：會員日折扣不影響服務費基準）
+  const service = (singBase + lowFee) * svcRate;
   const total = singFee + lowFee + service;
   const per = total / people;
 
@@ -820,7 +844,7 @@ function calcHoliday() {
      </div>
      <div class="line">
        <span class="label-cell">服務費 ${svcRate*100}%
-         <span class="note">(歡唱費 + 餐飲低消) × ${svcRate*100}%</span>
+         <span class="note">(歡唱費${discRate<1?"折扣前 "+money(singBase):""} + 餐飲低消 ${money(lowFee)}) × ${svcRate*100}%</span>
        </span>
        <span class="val">${money(service)}</span>
      </div>

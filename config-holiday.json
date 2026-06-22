@@ -12,7 +12,12 @@
     { "name": "無（一般價）", "rate": 1 },
     { "name": "台中美光（9 折）", "rate": 0.9 }
   ],
-  "memberDayRate": 0.5,
+  "memberDay": {
+    "dayRate": 0.5,
+    "nightRate": 0.8,
+    "dayWindow": { "from": "06:00", "to": "18:59" },
+    "excludeRooms": ["vip"]
+  },
   "roomPricing": {
     "weekday": { "label": "平日（一~四）", "slots": [
       { "from": "15:00", "to": "18:59", "prices": { "small": 380, "medium": 490, "large": 650, "xl": 810, "vip": 1250 } },
