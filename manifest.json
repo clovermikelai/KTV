@@ -1,0 +1,13 @@
+{
+  "name": "KTV 比價計算機",
+  "short_name": "KTV比價",
+  "description": "一次比較各家 KTV 每人花費的計算機",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fbf6fb",
+  "theme_color": "#e91e8c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
