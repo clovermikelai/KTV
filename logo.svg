@@ -1,0 +1,21 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="KTV 比價計算機">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e91e8c"/>
+      <stop offset="1" stop-color="#f57c00"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="56" fill="url(#g)"/>
+  <circle cx="60" cy="60" r="56" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/>
+  <g fill="#fff">
+    <rect x="50" y="28" width="20" height="40" rx="10"/>
+    <path d="M40 60 a20 20 0 0 0 40 0 h-7 a13 13 0 0 1 -26 0 z"/>
+    <rect x="56.5" y="78" width="7" height="12" rx="2"/>
+    <rect x="46" y="90" width="28" height="6" rx="3"/>
+  </g>
+  <g fill="#fff" fill-opacity="0.95">
+    <circle cx="84" cy="44" r="6"/>
+    <rect x="88" y="22" width="4" height="24" rx="2"/>
+    <path d="M88 22 q10 2 10 10 q-6 -4 -10 -2 z"/>
+  </g>
+</svg>
