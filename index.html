@@ -279,6 +279,31 @@
   table.htable td.rowhead { background: var(--accent); color: var(--primary-dark); font-weight: 700; }
   table.htable input { width: 64px; padding: 4px 5px; border: 1.5px solid var(--line); border-radius: 6px; font-size: 0.82rem; text-align: right; font-family: inherit; }
   table.htable .daysep td { background: var(--bg); font-weight: 700; color: var(--primary-dark); text-align: left; }
+  /* 比價首頁 */
+  .home-logo { text-align: center; margin-bottom: 16px; }
+  .home-logo img { display:block; margin: 0 auto 6px; }
+  .home-logo h1 { color: var(--primary); font-size: 1.4rem; margin: 0 0 2px; }
+  .home-logo p { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .cmp-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    position: relative; cursor: pointer; transition: transform 0.1s;
+  }
+  .cmp-card:active { transform: scale(0.99); }
+  .cmp-card.best { border: 2px solid var(--primary); }
+  .cmp-rank { position:absolute; top:-8px; left:14px; background: var(--primary); color:#fff;
+    font-size:0.7rem; font-weight:700; border-radius:6px; padding:2px 8px; }
+  .cmp-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .cmp-brand { font-weight:800; font-size:1.05rem; color: var(--ink); }
+  .cmp-per { font-weight:800; font-size:1.6rem; color: var(--primary); }
+  .cmp-per small { font-size:0.8rem; font-weight:600; }
+  .cmp-info { font-size:0.8rem; color: var(--muted); margin-top:4px; line-height:1.6; }
+  .cmp-total { font-size:0.8rem; color: var(--muted); }
+  .cmp-tip {
+    background: var(--accent); border-radius: 8px; padding: 6px 10px; margin-top: 8px;
+    font-size: 0.78rem; color: var(--primary-dark);
+  }
+  .cmp-go { font-size:0.75rem; color: var(--primary); margin-top:6px; }
 </style>
 </head>
 <body>
@@ -286,6 +311,58 @@
   <!-- 品牌切換分頁 -->
   <div class="brands" id="brandTabs"></div>
 
+  <!-- ============ 比價首頁 ============ -->
+  <div id="homeView">
+    <div class="home-logo">
+      <img src="logo.svg" alt="KTV 比價" width="84" height="84">
+      <h1>KTV 比價計算機</h1>
+      <p>填基本資訊，一次比較各家每人花費</p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="field">
+          <label for="hPeople">人數</label>
+          <select id="hPeople"></select>
+        </div>
+        <div class="field">
+          <label for="hDay">日期類型</label>
+          <select id="hDay">
+            <option value="weekday">平日（一~四）</option>
+            <option value="friday">星期五</option>
+            <option value="saturday">星期六/連假</option>
+            <option value="sunday">星期日/例假日</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="hEntry">進場時間</label>
+        <input type="time" id="hEntry" value="18:30" step="60">
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="hCompany" style="width:auto;"> 套用企業合作優惠（各家自動套用）
+        </label>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="hMember" style="width:auto;"> 今日為好樂迪會員日
+        </label>
+        <div class="hint">優惠依各家規則自動套用：超級巨星套企業折、好樂迪套會員日或企業/威力卡（取最優）。</div>
+      </div>
+    </div>
+
+    <div id="compareResults"></div>
+
+    <footer>
+      <div class="hint" style="text-align:center">
+        金額為估算，實際以各門市現場為準。點上方分頁可進入單一品牌看完整明細與設定。
+      </div>
+    </footer>
+  </div>
+
+  <!-- ============ 單店計算器 ============ -->
+  <div id="calcView" style="display:none">
   <header>
     <h1 id="title">🎤 KTV 分帳計算機</h1>
     <p id="subtitle">選人數、日期與進場時間，自動算出每人費用</p>
@@ -326,7 +403,7 @@
     <div class="row">
       <div class="field">
         <label for="entry">進場時間</label>
-        <input type="time" id="entry" value="20:00" step="60">
+        <input type="time" id="entry" value="18:30" step="60">
       </div>
       <div class="field">
         <label for="hours">歡唱時數</label>
@@ -369,7 +446,8 @@
       <ul id="rulesList"></ul>
     </details>
   </footer>
-</div>
+  </div><!-- /calcView -->
+</div><!-- /wrap -->
 
 <!-- 設定面板 -->
 <div class="overlay" id="overlay">
@@ -987,16 +1065,33 @@ function applyTheme(th) {
   r.setProperty("--line", th.line);
   r.setProperty("--accent", th.accent);
 }
+let VIEW = "home";   // home | calc
 function renderBrandTabs() {
   const bar = document.getElementById("brandTabs");
-  bar.innerHTML = BRANDS.map(b =>
-    `<button class="brand-tab ${b.key===CURRENT_BRAND.key?"active":""} ${b.ready?"":"soon"}" data-key="${b.key}">
+  const homeTab = `<button class="brand-tab ${VIEW==="home"?"active":""}" data-key="__home__">
+       <span class="ic">🏠</span>比價首頁</button>`;
+  bar.innerHTML = homeTab + BRANDS.map(b =>
+    `<button class="brand-tab ${(VIEW==="calc"&&b.key===CURRENT_BRAND.key)?"active":""} ${b.ready?"":"soon"}" data-key="${b.key}">
        <span class="ic">${b.icon}</span>${b.name}
        ${b.ready ? "" : '<span class="badge">即將推出</span>'}
      </button>`
   ).join("");
   bar.querySelectorAll(".brand-tab").forEach(btn =>
-    btn.addEventListener("click", () => selectBrand(btn.dataset.key)));
+    btn.addEventListener("click", () => {
+      if (btn.dataset.key === "__home__") goHome();
+      else selectBrand(btn.dataset.key);
+    }));
+}
+function goHome() {
+  VIEW = "home";
+  try { localStorage.setItem("ktv_brand", "__home__"); } catch (e) {}
+  document.getElementById("homeView").style.display = "";
+  document.getElementById("calcView").style.display = "none";
+  // 首頁用中性主題（粉紅）
+  applyTheme({ primary:"#e91e8c", primaryDark:"#c2156f", bg:"#fbf6fb", line:"#ececec", accent:"#fff8e6" });
+  document.title = "KTV 比價計算機";
+  renderBrandTabs();
+  renderCompare();
 }
 function applyBrandChrome(brand) {
   document.getElementById("title").textContent = brand.title;
@@ -1030,7 +1125,10 @@ async function selectBrand(key) {
     return;
   }
   CURRENT_BRAND = brand;
+  VIEW = "calc";
   try { localStorage.setItem("ktv_brand", key); } catch (e) {}
+  document.getElementById("homeView").style.display = "none";
+  document.getElementById("calcView").style.display = "";
   applyTheme(brand.theme);
   applyBrandChrome(brand);
   renderBrandTabs();
@@ -1196,26 +1294,169 @@ peopleSel.addEventListener("change", () => {
 document.getElementById("entry").addEventListener("input", calc);
 
 // ============================================================
+//  比價首頁 —— 純函式計費（不依賴畫面），各品牌算每人花費
+// ============================================================
+const HOME_CONFIGS = {};   // { superstar: cfg, holiday: cfg }，init 時載入
+
+function ssInSlotM(min, s){const f=toMin(s.from),t=toMin(s.to);return f<=t?(min>=f&&min<=t):(min>=f||min<=t);}
+function ssFindSlotM(day, min){return day.slots.find(s=>ssInSlotM(min,s))||day.slots[0];}
+// 超級巨星純計費
+function priceSuperstar(cfg, {people, dayKey, minute, useCompany}) {
+  const room = cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
+  const day = cfg.slots[dayKey];
+  const entrySlot = ssFindSlotM(day, minute);
+  const isHourly = !!entrySlot.hourly;
+  const hours = isHourly ? 4 : (2 + entrySlot.promo);
+  // 企業折：取 companies 中 rate<1 最低者
+  let companyRate = 1, companyName = "";
+  if (useCompany) {
+    cfg.companies.forEach(c => { if (c.rate < companyRate) { companyRate = c.rate; companyName = c.name; } });
+  }
+  const totalMin = hours*60, perMin = room.room/60;
+  const blockMin = isHourly ? Infinity : (2+entrySlot.promo)*60;
+  let chargedMin=0, roomAfterSlot=0;
+  for(let i=0;i<totalMin;i++){
+    const charged = isHourly ? true : (i%blockMin)<120;
+    if(!charged) continue;
+    const tod=(minute+i)%1440;
+    roomAfterSlot += perMin * ssFindSlotM(day,tod).discount;
+    chargedMin++;
+  }
+  const billable=chargedMin/60;
+  const roomFinal=roomAfterSlot*companyRate;
+  let cRate=1;
+  if(dayKey!=="sunday" && minute>=toMin("08:00") && minute<=toMin("16:59")) cRate=0.5;
+  const cleanFinal=room.clean*cRate;
+  const service=(room.room*billable + room.clean)*0.10;
+  const total=roomFinal+cleanFinal+service;
+  return { total, per: total/people, room: room.name, hours,
+    exitMin:(minute+hours*60)%1440,
+    note: companyName ? `已套${companyName}` : "" };
+}
+// 好樂迪純計費（自動取最優：人數計費 vs 包廂計費，且套最優折扣）
+function priceHoliday(cfg, {people, dayKey, minute, useCompany, useMember}) {
+  const room = cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
+  const md = cfg.memberDay, mdEx = (md.excludeRooms||[]).includes(room.key);
+  // 決定折扣率（會員日 vs 企業/威力卡，取最低 rate）
+  let discRate = 1, discName = "";
+  if (useMember && !mdEx) {
+    const f=toMin(md.dayWindow.from), t=toMin(md.dayWindow.to);
+    const inDay = f<=t?(minute>=f&&minute<=t):(minute>=f||minute<=t);
+    discRate = inDay?md.dayRate:md.nightRate; discName = `會員日${Math.round(discRate*10)}折`;
+  }
+  if (useCompany) {
+    cfg.companies.forEach(c => { if (c.rate < discRate) { discRate = c.rate; discName = c.name; } });
+  }
+  const lowFee = cfg.lowSpendPerPerson*people;
+  // 人數計費（VIP 不適用）
+  function personMode() {
+    if (room.key === "vip") return null;
+    const day = cfg.personPricing[dayKey], slot = hSlot(day.slots, minute);
+    let h; if(slot.hours!=null)h=slot.hours; else if(slot.until){let d=toMin(slot.until)-minute;if(d<=0)d+=1440;h=d/60;} else h=0;
+    const base = slot.price*Math.max(people,2);
+    const svc=(base+lowFee)*cfg.serviceRate;
+    const total=base*discRate+lowFee+svc;
+    return { total, per: total/people, room: room.name, mode:"人數計費", hours:h,
+      exitMin:(minute+Math.round(h*60))%1440, note: discName };
+  }
+  // 包廂計費（時數預設方案無，取4小時估）
+  function roomMode() {
+    const day = cfg.roomPricing[dayKey], hours=4, totalMin=hours*60;
+    let base=0; for(let i=0;i<totalMin;i++){base+=hSlot(day.slots,(minute+i)%1440).prices[room.key]/60;}
+    const svc=(base+lowFee)*cfg.serviceRate;
+    const total=base*discRate+lowFee+svc;
+    return { total, per: total/people, room: room.name, mode:"包廂計費", hours,
+      exitMin:(minute+hours*60)%1440, note: discName };
+  }
+  const cands = [personMode(), roomMode()].filter(Boolean);
+  // 取最便宜；同價時人數計費優先（較常見、符合官方帳單）
+  cands.sort((a,b)=> (a.total-b.total) || (a.mode==="人數計費"?-1:1));
+  return cands[0];
+}
+
+function priceBrand(brandKey, params) {
+  const cfg = HOME_CONFIGS[brandKey];
+  if (!cfg) return null;
+  if (brandKey === "superstar") return priceSuperstar(cfg, params);
+  if (brandKey === "holiday")  return priceHoliday(cfg, params);
+  return null;
+}
+
+function fmtHM(min){ return String(Math.floor(min/60)).padStart(2,"0")+":"+String(min%60).padStart(2,"0"); }
+function fmtHours(n){ return Number.isInteger(n)?n:n.toFixed(1); }
+
+function renderCompare() {
+  const people = parseInt(document.getElementById("hPeople").value, 10);
+  const dayKey = document.getElementById("hDay").value;
+  const entry = document.getElementById("hEntry").value;
+  const minute = toMin(entry);
+  const useCompany = document.getElementById("hCompany").checked;
+  const useMember = document.getElementById("hMember").checked;
+  const params = { people, dayKey, minute, useCompany, useMember };
+
+  const results = BRANDS.filter(b=>b.ready).map(b => {
+    const r = priceBrand(b.key, params);
+    if (!r) return null;
+    // 建議時段：前後 3 小時、每 30 分鐘，找「真的更便宜」的最佳進場時間
+    let best = null;
+    for (let d=-180; d<=180; d+=30) {
+      if (d===0) continue;
+      const m2 = (minute+d+1440)%1440;
+      const r2 = priceBrand(b.key, {...params, minute:m2});
+      if (r2 && r2.per < (best?best.per:r.per) - 0.5) best = { ...r2, at:m2, delta:d };
+    }
+    return { brand:b, r, best };
+  }).filter(Boolean);
+
+  results.sort((a,b)=>a.r.per - b.r.per);
+
+  const box = document.getElementById("compareResults");
+  if (!results.length) { box.innerHTML = `<div class="cmp-card">尚無可比價的品牌</div>`; return; }
+
+  box.innerHTML = results.map((x, i) => {
+    const { brand, r, best } = x;
+    const exit = fmtHM(r.exitMin);
+    const tip = best
+      ? `<div class="cmp-tip">💡 改 ${fmtHM(best.at)} 進場更省：每人 $${Math.round(best.per)}（省 $${Math.round(r.per-best.per)}）</div>`
+      : "";
+    return `<div class="cmp-card ${i===0?"best":""}" data-key="${brand.key}">
+      ${i===0?`<span class="cmp-rank">最便宜</span>`:""}
+      <div class="cmp-head">
+        <span class="cmp-brand">${brand.icon} ${brand.name}</span>
+        <span class="cmp-per">$${Math.round(r.per)}<small>/人</small></span>
+      </div>
+      <div class="cmp-info">🎤 ${r.room}${r.mode?`・${r.mode}`:""}　🎶 歡唱 ${fmtHours(r.hours)} 時（至 ${exit}）${r.note?`　🏷️ ${r.note}`:""}</div>
+      <div class="cmp-total">總計 $${Math.round(r.total)} ÷ ${people} 人</div>
+      ${tip}
+      <div class="cmp-go">點此進入 ${brand.name} 看完整明細 ›</div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll(".cmp-card[data-key]").forEach(c =>
+    c.addEventListener("click", () => selectBrand(c.dataset.key)));
+}
+
+// ============================================================
 //  啟動
 // ============================================================
 (async function init() {
   buildPeople();
   buildHours();
-  // 記住上次選的品牌（必須是 ready 的）
-  let startKey = "superstar";
-  try {
-    const saved = localStorage.getItem("ktv_brand");
-    if (saved && BRANDS.some(b => b.key === saved && b.ready)) startKey = saved;
-  } catch (e) {}
-  const brand = BRANDS.find(b => b.key === startKey) || BRANDS[0];
-  CURRENT_BRAND = brand;
-  applyTheme(brand.theme);
-  applyBrandChrome(brand);
-  renderBrandTabs();
-  applyEngineUI(brand);
-  const cfg = await loadConfig(brand);
-  if (brand.engine === "holiday") { HCONFIG = cfg; } else { applyConfig(cfg); }
-  refreshAll();
+  // 首頁人數下拉
+  const hp = document.getElementById("hPeople");
+  for (let i = 1; i <= 30; i++) hp.add(new Option(i + " 人", i));
+  hp.value = 6;
+  // 載入兩家設定供比價
+  for (const b of BRANDS.filter(b=>b.ready)) {
+    HOME_CONFIGS[b.key] = await loadConfig(b);
+  }
+  // 首頁事件
+  ["hPeople","hDay","hEntry","hCompany","hMember"].forEach(id =>
+    document.getElementById(id).addEventListener("change", renderCompare));
+  document.getElementById("hEntry").addEventListener("input", renderCompare);
+
+  // 預設一律進比價首頁（使用者可手動切換到各品牌）
+  goHome();
 })();
 </script>
 </body>
