@@ -753,7 +753,8 @@ function buildRoomSelect() {
 function buildCompanySelect() {
   companySel.innerHTML = "";
   COMPANIES.forEach((c, i) => companySel.add(new Option(c.name, i)));
-  companySel.value = 0;
+  // 若有來自首頁的待套用優惠，用之；否則預設 0
+  companySel.value = (window._pendingCompanyIdx != null) ? window._pendingCompanyIdx : 0;
 }
 function autoRoom() {
   if (window._forceRoom && ROOMS.some(r=>r.key===window._forceRoom)) { roomSel.value = window._forceRoom; return; }
@@ -1003,7 +1004,7 @@ function buildHolidayRoomSelect() {
 function buildHolidayCompanySelect() {
   companySel.innerHTML = "";
   HCONFIG.companies.forEach((c, i) => companySel.add(new Option(c.name, i)));
-  companySel.value = 0;
+  companySel.value = (window._pendingCompanyIdx != null) ? window._pendingCompanyIdx : 0;
 }
 function autoRoomHoliday() {
   if (window._forceRoom && HCONFIG.rooms.some(r=>r.key===window._forceRoom)) { roomSel.value = window._forceRoom; return; }
@@ -1162,6 +1163,7 @@ async function selectBrand(key) {
   // 同步首頁選擇到分頁（人數、日期、進場時間、包廂、優惠）
   syncHomeToCalc(brand);
   refreshAll();
+  window._pendingCompanyIdx = null;   // 套用完畢，避免影響後續手動操作
 }
 
 // 把首頁的選擇帶進單店計算器的控制項
@@ -1181,18 +1183,17 @@ function syncHomeToCalc(brand) {
   } else {
     window._forceRoom = null;
   }
-  // 優惠
+  // 優惠：記錄待套用的企業折選單 index（refreshAll 重建選單後才套用，避免被覆蓋）
   if (brand.engine === "superstar") {
     const useC = document.getElementById("hSsCompany").checked;
-    // 企業折選單：有勾就選第一個 rate<1 者
     const idx = useC ? COMPANIES.findIndex(c=>c.rate<1) : 0;
-    companySel.value = idx >= 0 ? idx : 0;
+    window._pendingCompanyIdx = idx >= 0 ? idx : 0;
   } else {
     const useC = document.getElementById("hHdCompany").checked;
     const useM = document.getElementById("hMember").checked;
     document.getElementById("memberDay").checked = useM;
     const idx = useC ? HCONFIG.companies.findIndex(c=>c.rate<1) : 0;
-    companySel.value = idx >= 0 ? idx : 0;
+    window._pendingCompanyIdx = idx >= 0 ? idx : 0;
   }
 }
 
