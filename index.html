@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KTV 分帳計算機</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e91e8c">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KTV比價">
 <style>
   :root {
     /* 主題色（會由 JS 依品牌切換）。預設＝超級巨星粉紅 */
@@ -326,6 +332,19 @@
           <select id="hPeople"></select>
         </div>
         <div class="field">
+          <label for="hRoom">包廂</label>
+          <select id="hRoom">
+            <option value="auto">自動（依人數）</option>
+            <option value="small">小包廂</option>
+            <option value="medium">中包廂</option>
+            <option value="large">大包廂</option>
+            <option value="xl">特大包廂</option>
+            <option value="vip">VIP包廂</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
           <label for="hDay">日期類型</label>
           <select id="hDay">
             <option value="weekday">平日（一~四）</option>
@@ -334,21 +353,23 @@
             <option value="sunday">星期日/例假日</option>
           </select>
         </div>
+        <div class="field">
+          <label for="hEntry">進場時間</label>
+          <input type="time" id="hEntry" value="18:30" step="60">
+        </div>
       </div>
       <div class="field">
-        <label for="hEntry">進場時間</label>
-        <input type="time" id="hEntry" value="18:30" step="60">
-      </div>
-      <div class="field">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" id="hCompany" style="width:auto;"> 套用企業合作優惠（各家自動套用）
+        <label style="font-weight:700; color:var(--primary-dark); font-size:0.9rem;">優惠（依適用品牌勾選）</label>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400;">
+          <input type="checkbox" id="hSsCompany" style="width:auto;"> 超級巨星：企業合作折
         </label>
-      </div>
-      <div class="field">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" id="hMember" style="width:auto;"> 今日為好樂迪會員日
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400; margin-top:4px;">
+          <input type="checkbox" id="hHdCompany" style="width:auto;"> 好樂迪：企業／威力卡 9 折
         </label>
-        <div class="hint">優惠依各家規則自動套用：超級巨星套企業折、好樂迪套會員日或企業/威力卡（取最優）。</div>
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400; margin-top:4px;">
+          <input type="checkbox" id="hMember" style="width:auto;"> 好樂迪：今日為會員日
+        </label>
+        <div class="hint">各家取所勾選優惠中對你最有利者；好樂迪會員日與企業/威力卡不併用，自動取較優。</div>
       </div>
     </div>
 
@@ -735,6 +756,7 @@ function buildCompanySelect() {
   companySel.value = 0;
 }
 function autoRoom() {
+  if (window._forceRoom && ROOMS.some(r=>r.key===window._forceRoom)) { roomSel.value = window._forceRoom; return; }
   const p = parseInt(peopleSel.value, 10);
   const r = ROOMS.find(r => p <= r.max) || ROOMS[ROOMS.length - 1];
   roomSel.value = r.key;
@@ -984,6 +1006,7 @@ function buildHolidayCompanySelect() {
   companySel.value = 0;
 }
 function autoRoomHoliday() {
+  if (window._forceRoom && HCONFIG.rooms.some(r=>r.key===window._forceRoom)) { roomSel.value = window._forceRoom; return; }
   const p = parseInt(peopleSel.value, 10);
   const r = HCONFIG.rooms.find(r => p <= r.max) || HCONFIG.rooms[HCONFIG.rooms.length - 1];
   roomSel.value = r.key;
@@ -1136,7 +1159,41 @@ async function selectBrand(key) {
   const cfg = await loadConfig(brand);
   if (brand.engine === "holiday") { HCONFIG = cfg; }
   else { applyConfig(cfg); }
+  // 同步首頁選擇到分頁（人數、日期、進場時間、包廂、優惠）
+  syncHomeToCalc(brand);
   refreshAll();
+}
+
+// 把首頁的選擇帶進單店計算器的控制項
+function syncHomeToCalc(brand) {
+  const people = document.getElementById("hPeople").value;
+  const dayKey = document.getElementById("hDay").value;
+  const entry  = document.getElementById("hEntry").value;
+  const roomKey = document.getElementById("hRoom").value;
+  peopleSel.value = people;
+  document.getElementById("day").value = dayKey;
+  document.getElementById("entry").value = entry;
+  // 包廂：auto 用 refreshAll 內的 autoRoom；否則指定（先建好選單再設值）
+  if (brand.engine === "holiday") buildHolidayRoomSelect(); else buildRoomSelect();
+  if (roomKey && roomKey !== "auto") {
+    roomSel.value = roomKey;
+    window._forceRoom = roomKey;   // 標記：refreshAll 後不要被 autoRoom 覆蓋
+  } else {
+    window._forceRoom = null;
+  }
+  // 優惠
+  if (brand.engine === "superstar") {
+    const useC = document.getElementById("hSsCompany").checked;
+    // 企業折選單：有勾就選第一個 rate<1 者
+    const idx = useC ? COMPANIES.findIndex(c=>c.rate<1) : 0;
+    companySel.value = idx >= 0 ? idx : 0;
+  } else {
+    const useC = document.getElementById("hHdCompany").checked;
+    const useM = document.getElementById("hMember").checked;
+    document.getElementById("memberDay").checked = useM;
+    const idx = useC ? HCONFIG.companies.findIndex(c=>c.rate<1) : 0;
+    companySel.value = idx >= 0 ? idx : 0;
+  }
 }
 
 // ============================================================
@@ -1286,13 +1343,17 @@ document.getElementById("resetSettings").addEventListener("click", async () => {
 });
 
 peopleSel.addEventListener("change", () => {
+  window._forceRoom = null;   // 手動改人數 → 恢復自動選包廂
   if (CURRENT_BRAND.engine === "holiday") autoRoomHoliday(); else autoRoom();
   calc();
 });
+roomSel.addEventListener("change", () => { window._forceRoom = roomSel.value; });
 ["room","day","entry","hours","company","mode","memberDay"].forEach(id =>
   document.getElementById(id).addEventListener("change", calc));
 document.getElementById("entry").addEventListener("input", calc);
 
+// ============================================================
+//  啟動
 // ============================================================
 //  比價首頁 —— 純函式計費（不依賴畫面），各品牌算每人花費
 // ============================================================
@@ -1301,8 +1362,9 @@ const HOME_CONFIGS = {};   // { superstar: cfg, holiday: cfg }，init 時載入
 function ssInSlotM(min, s){const f=toMin(s.from),t=toMin(s.to);return f<=t?(min>=f&&min<=t):(min>=f||min<=t);}
 function ssFindSlotM(day, min){return day.slots.find(s=>ssInSlotM(min,s))||day.slots[0];}
 // 超級巨星純計費
-function priceSuperstar(cfg, {people, dayKey, minute, useCompany}) {
-  const room = cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
+function priceSuperstar(cfg, {people, dayKey, minute, useCompany, roomKey}) {
+  const room = (roomKey && roomKey!=="auto" && cfg.rooms.find(r=>r.key===roomKey))
+            || cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
   const day = cfg.slots[dayKey];
   const entrySlot = ssFindSlotM(day, minute);
   const isHourly = !!entrySlot.hourly;
@@ -1334,8 +1396,9 @@ function priceSuperstar(cfg, {people, dayKey, minute, useCompany}) {
     note: companyName ? `已套${companyName}` : "" };
 }
 // 好樂迪純計費（自動取最優：人數計費 vs 包廂計費，且套最優折扣）
-function priceHoliday(cfg, {people, dayKey, minute, useCompany, useMember}) {
-  const room = cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
+function priceHoliday(cfg, {people, dayKey, minute, useCompany, useMember, roomKey}) {
+  const room = (roomKey && roomKey!=="auto" && cfg.rooms.find(r=>r.key===roomKey))
+            || cfg.rooms.find(r=>people<=r.max) || cfg.rooms[cfg.rooms.length-1];
   const md = cfg.memberDay, mdEx = (md.excludeRooms||[]).includes(room.key);
   // 決定折扣率（會員日 vs 企業/威力卡，取最低 rate）
   let discRate = 1, discName = "";
@@ -1390,19 +1453,26 @@ function renderCompare() {
   const dayKey = document.getElementById("hDay").value;
   const entry = document.getElementById("hEntry").value;
   const minute = toMin(entry);
-  const useCompany = document.getElementById("hCompany").checked;
+  const roomKey = document.getElementById("hRoom").value;
+  const ssCompany = document.getElementById("hSsCompany").checked;
+  const hdCompany = document.getElementById("hHdCompany").checked;
   const useMember = document.getElementById("hMember").checked;
-  const params = { people, dayKey, minute, useCompany, useMember };
+  // 各品牌的參數（企業折細分）
+  const paramsFor = (bkey, extra={}) => ({
+    people, dayKey, minute: extra.minute!=null?extra.minute:minute, roomKey,
+    useCompany: bkey === "superstar" ? ssCompany : hdCompany,
+    useMember,
+  });
 
   const results = BRANDS.filter(b=>b.ready).map(b => {
-    const r = priceBrand(b.key, params);
+    const r = priceBrand(b.key, paramsFor(b.key));
     if (!r) return null;
     // 建議時段：前後 3 小時、每 30 分鐘，找「真的更便宜」的最佳進場時間
     let best = null;
     for (let d=-180; d<=180; d+=30) {
       if (d===0) continue;
       const m2 = (minute+d+1440)%1440;
-      const r2 = priceBrand(b.key, {...params, minute:m2});
+      const r2 = priceBrand(b.key, paramsFor(b.key, {minute:m2}));
       if (r2 && r2.per < (best?best.per:r.per) - 0.5) best = { ...r2, at:m2, delta:d };
     }
     return { brand:b, r, best };
@@ -1437,8 +1507,6 @@ function renderCompare() {
 }
 
 // ============================================================
-//  啟動
-// ============================================================
 (async function init() {
   buildPeople();
   buildHours();
@@ -1451,7 +1519,7 @@ function renderCompare() {
     HOME_CONFIGS[b.key] = await loadConfig(b);
   }
   // 首頁事件
-  ["hPeople","hDay","hEntry","hCompany","hMember"].forEach(id =>
+  ["hPeople","hRoom","hDay","hEntry","hSsCompany","hHdCompany","hMember"].forEach(id =>
     document.getElementById(id).addEventListener("change", renderCompare));
   document.getElementById("hEntry").addEventListener("input", renderCompare);
 

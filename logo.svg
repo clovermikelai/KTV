@@ -5,14 +5,17 @@
       <stop offset="1" stop-color="#f57c00"/>
     </linearGradient>
   </defs>
+  <!-- 圓底 -->
   <circle cx="60" cy="60" r="56" fill="url(#g)"/>
   <circle cx="60" cy="60" r="56" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="3"/>
+  <!-- 麥克風 -->
   <g fill="#fff">
     <rect x="50" y="28" width="20" height="40" rx="10"/>
     <path d="M40 60 a20 20 0 0 0 40 0 h-7 a13 13 0 0 1 -26 0 z"/>
     <rect x="56.5" y="78" width="7" height="12" rx="2"/>
     <rect x="46" y="90" width="28" height="6" rx="3"/>
   </g>
+  <!-- 音符 -->
   <g fill="#fff" fill-opacity="0.95">
     <circle cx="84" cy="44" r="6"/>
     <rect x="88" y="22" width="4" height="24" rx="2"/>

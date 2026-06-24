@@ -1,3 +1,5 @@
+_*.js
+_*.py
+*.stackdump
 crop_*.png
-wk_*.png
 *.output
