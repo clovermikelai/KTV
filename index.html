@@ -289,6 +289,13 @@
   .home-logo { text-align: center; margin-bottom: 16px; }
   .home-logo img { display:block; margin: 0 auto 6px; }
   .home-logo h1 { color: var(--primary); font-size: 1.4rem; margin: 0 0 2px; }
+  .home-title { display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+  .share-btn {
+    border: none; background: var(--primary); color: #fff;
+    width: 30px; height: 30px; border-radius: 50%; font-size: 0.95rem;
+    cursor: pointer; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .share-btn:hover { background: var(--primary-dark); }
   .home-logo p { color: var(--muted); font-size: 0.85rem; margin: 0; }
   .cmp-card {
     background: var(--card); border: 1px solid var(--line); border-radius: 14px;
@@ -321,7 +328,9 @@
   <div id="homeView">
     <div class="home-logo">
       <img src="logo.svg" alt="KTV 比價" width="84" height="84">
-      <h1>KTV 比價計算機</h1>
+      <h1 class="home-title">KTV 比價計算機
+        <button id="shareBtn" class="share-btn" type="button" title="分享 / 複製網址" aria-label="分享">🔗</button>
+      </h1>
       <p>填基本資訊，一次比較各家每人花費</p>
     </div>
 
@@ -1523,6 +1532,22 @@ function renderCompare() {
   ["hPeople","hRoom","hDay","hEntry","hSsCompany","hHdCompany","hMember"].forEach(id =>
     document.getElementById(id).addEventListener("change", renderCompare));
   document.getElementById("hEntry").addEventListener("input", renderCompare);
+
+  // 分享按鈕：手機用原生分享、桌面退回複製網址
+  document.getElementById("shareBtn").addEventListener("click", async () => {
+    const url = location.href.split("#")[0];
+    const data = { title: "KTV 比價計算機", text: "一次比較各家 KTV 每人花費", url };
+    if (navigator.share) {
+      try { await navigator.share(data); } catch (e) { /* 使用者取消 */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("已複製網址：\n" + url);
+      } catch (e) {
+        prompt("複製此網址分享：", url);
+      }
+    }
+  });
 
   // 預設一律進比價首頁（使用者可手動切換到各品牌）
   goHome();
