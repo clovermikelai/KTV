@@ -708,7 +708,7 @@ function computeRoom(room, dayKey, entryMinute, hours, entrySlot, companyRate) {
   const totalMin = hours * 60;
   const perMin = room.room / 60;
   const blockMin = entrySlot.hourly ? Infinity : (2 + entrySlot.promo) * 60;
-  let chargedMin = 0, roomBase = 0, roomAfterSlot = 0;
+  let chargedMin = 0, roomBase = 0;
   const bands = {};
   for (let i = 0; i < totalMin; i++) {
     const charged = entrySlot.hourly ? true : (i % blockMin) < 120;
@@ -717,14 +717,16 @@ function computeRoom(room, dayKey, entryMinute, hours, entrySlot, companyRate) {
     const s = findSlot(dayKey, tod);
     chargedMin++;
     roomBase += perMin;
-    roomAfterSlot += perMin * s.discount;
     const b = bands[s.desc] || (bands[s.desc] = { desc: s.desc, discount: s.discount, min: 0 });
     b.min++;
   }
+  // 時段折後：每個時段「各自四捨五入」後相加（與門市帳單一致）
+  const bandsArr = Object.values(bands);
+  const roomAfterSlot = bandsArr.reduce((sum, b) => sum + Math.round(perMin * b.min * b.discount), 0);
   return {
     chargedMin, freeMin: totalMin - chargedMin, roomBase, roomAfterSlot,
     roomFinal: roomAfterSlot * companyRate,
-    bands: Object.values(bands),
+    bands: bandsArr,
   };
 }
 function cleaningRate(dayKey, minute) {
@@ -793,16 +795,21 @@ function calc() {
   const hours = isHourly ? parseInt(hoursSel.value, 10) : planHours(entrySlot);
 
   const r = computeRoom(room, dayKey, minute, hours, entrySlot, company.rate);
-  const roomBase = r.roomBase, roomAfterSlot = r.roomAfterSlot, roomFinal = r.roomFinal;
+  const roomBase = r.roomBase;
+  const roomAfterSlot = Math.round(r.roomAfterSlot);   // 時段折後（已分段四捨五入）
   const billable = r.chargedMin / 60;
 
   const cRate = cleaningRate(dayKey, minute);
-  const cleanFinal = room.clean * cRate;
+  const cleanFinal = Math.round(room.clean * cRate);
 
-  // 服務費：包廂「套時段折扣後」（企業折扣前）＋ 清潔原價，再 × 10%
-  const serviceBase = roomAfterSlot + room.clean;
-  const service = serviceBase * 0.10;
+  // 企業折扣：另計一行，= 時段折後 × (1 − 折扣率)，四捨五入
+  const discountAmt = Math.round(roomAfterSlot * (1 - company.rate));
+  const roomFinal = roomAfterSlot - discountAmt;        // 包廂實付（折後）
 
+  // 服務費：(包廂時段折後 + 清潔原價) × 10%，不計企業折扣，四捨五入
+  const service = Math.round((roomAfterSlot + cleanFinal) * 0.10);
+
+  // 總計＝各明細（四捨五入後）相加，確保與明細一致
   const total = roomFinal + cleanFinal + service;
   const per = total / people;
 
@@ -828,22 +835,27 @@ function calc() {
   document.getElementById("perPerson").innerHTML = money(per) + "<small>/人</small>";
   document.getElementById("perSub").textContent = `總計 ${money(total)} ÷ ${people} 人`;
 
-  const roomDiscounted = roomAfterSlot < roomBase || company.rate < 1;
-  const roomStrike = roomDiscounted ? `<span class="strike">${money(roomBase)}</span>` : "";
   const cleanStrike = cRate < 1 ? `<span class="strike">${money(room.clean)}</span>` : "";
-
   const bandNote = r.bands.map(b => `${(b.desc.split("・")[1] || b.desc)} ${fmtH(b.min/60)}時`).join("、");
-  const compNote = company.rate < 1
-    ? `<span class="note">時段折後 ${money(roomAfterSlot)} × 企業 ${company.rate*10}折 = ${money(roomFinal)}</span>` : "";
+
+  // 企業折扣獨立列（有折才顯示）
+  const discLine = company.rate < 1
+    ? `<div class="line">
+         <span class="label-cell">企業折扣（${company.name}）
+           <span class="note">包廂 ${money(roomAfterSlot)} × ${Math.round(company.rate*100)}%</span>
+         </span>
+         <span class="val">-${money(discountAmt)}</span>
+       </div>`
+    : "";
 
   document.getElementById("breakdown").innerHTML =
     `<div class="line">
        <span class="label-cell">包廂費（${room.name}）
          <span class="note">${room.room}/時 × 計費 ${fmtH(billable)} 時｜${bandNote}</span>
-         ${compNote}
        </span>
-       <span class="val">${roomStrike}${money(roomFinal)}</span>
+       <span class="val">${money(roomAfterSlot)}</span>
      </div>
+     ${discLine}
      <div class="line">
        <span class="label-cell">清潔費
          <span class="note">${cRate<1?"08:00~16:59 五折":"原價（一次）"}</span>
@@ -852,7 +864,7 @@ function calc() {
      </div>
      <div class="line">
        <span class="label-cell">服務費 10%
-         <span class="note">(包廂時段折後 ${money(roomAfterSlot)} + 清潔 ${room.clean}) × 10%</span>
+         <span class="note">(包廂時段折後 ${money(roomAfterSlot)} + 清潔 ${money(cleanFinal)}) × 10%</span>
        </span>
        <span class="val">${money(service)}</span>
      </div>
@@ -1387,21 +1399,20 @@ function priceSuperstar(cfg, {people, dayKey, minute, useCompany, roomKey}) {
   }
   const totalMin = hours*60, perMin = room.room/60;
   const blockMin = isHourly ? Infinity : (2+entrySlot.promo)*60;
-  let chargedMin=0, roomAfterSlot=0;
+  let chargedMin=0; const segMin={};
   for(let i=0;i<totalMin;i++){
     const charged = isHourly ? true : (i%blockMin)<120;
     if(!charged) continue;
-    const tod=(minute+i)%1440;
-    roomAfterSlot += perMin * ssFindSlotM(day,tod).discount;
-    chargedMin++;
+    const d=ssFindSlotM(day,(minute+i)%1440).discount;
+    segMin[d]=(segMin[d]||0)+1; chargedMin++;
   }
   const billable=chargedMin/60;
-  const roomFinal=roomAfterSlot*companyRate;
-  let cRate=1;
-  if(dayKey!=="sunday" && minute>=toMin("08:00") && minute<=toMin("16:59")) cRate=0.5;
-  const cleanFinal=room.clean*cRate;
-  // 服務費：包廂時段折後（企業折扣前）＋ 清潔原價，再 ×10%
-  const service=(roomAfterSlot + room.clean)*0.10;
+  // 時段折後：各時段各自四捨五入後相加（與門市帳單一致）
+  const roomAfterSlot=Object.entries(segMin).reduce((s,[d,m])=>s+Math.round(perMin*m*(+d)),0);
+  const cleanFinal=Math.round(room.clean*(dayKey!=="sunday" && minute>=toMin("08:00") && minute<=toMin("16:59") ? 0.5 : 1));
+  const discountAmt=Math.round(roomAfterSlot*(1-companyRate));
+  const roomFinal=roomAfterSlot-discountAmt;
+  const service=Math.round((roomAfterSlot + cleanFinal)*0.10);
   const total=roomFinal+cleanFinal+service;
   return { total, per: total/people, room: room.name, hours,
     exitMin:(minute+hours*60)%1440,
