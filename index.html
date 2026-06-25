@@ -586,7 +586,7 @@ const SUPERSTAR_RULES = [
   "包廂費 = 包廂原價 × 計費時數 × 時段折數 × 企業折扣",
   "計費時數依「買二送 N」折減：每 (2+N) 小時只收 2 小時；鐘點計價則全時數計費。",
   "清潔費 = 清潔原價 × 清潔折數（08:00~16:59 五折、其餘時段原價、星期日全天原價）。企業折扣不打清潔費。",
-  "服務費 = (包廂原價 × 計費時數 + 清潔原價) × 10%，以折扣前原價計算；贈送的免費時數不計服務費，企業折扣不打服務費。",
+  "服務費 = (包廂時段折扣後金額 + 清潔原價) × 10%；服務費計入時段折扣、但不計企業折扣，贈送的免費時數也不計。",
   "時段以「進場時間」判定，跨時段按分鐘分別套用各時段折數。現場活動等情形以門市現場計費為準。",
 ];
 
@@ -799,7 +799,8 @@ function calc() {
   const cRate = cleaningRate(dayKey, minute);
   const cleanFinal = room.clean * cRate;
 
-  const serviceBase = room.room * billable + room.clean;
+  // 服務費：包廂「套時段折扣後」（企業折扣前）＋ 清潔原價，再 × 10%
+  const serviceBase = roomAfterSlot + room.clean;
   const service = serviceBase * 0.10;
 
   const total = roomFinal + cleanFinal + service;
@@ -851,7 +852,7 @@ function calc() {
      </div>
      <div class="line">
        <span class="label-cell">服務費 10%
-         <span class="note">(${room.room}/時 × 計費 ${fmtH(billable)} 時 + 清潔 ${room.clean}) × 10%</span>
+         <span class="note">(包廂時段折後 ${money(roomAfterSlot)} + 清潔 ${room.clean}) × 10%</span>
        </span>
        <span class="val">${money(service)}</span>
      </div>
@@ -1399,7 +1400,8 @@ function priceSuperstar(cfg, {people, dayKey, minute, useCompany, roomKey}) {
   let cRate=1;
   if(dayKey!=="sunday" && minute>=toMin("08:00") && minute<=toMin("16:59")) cRate=0.5;
   const cleanFinal=room.clean*cRate;
-  const service=(room.room*billable + room.clean)*0.10;
+  // 服務費：包廂時段折後（企業折扣前）＋ 清潔原價，再 ×10%
+  const service=(roomAfterSlot + room.clean)*0.10;
   const total=roomFinal+cleanFinal+service;
   return { total, per: total/people, room: room.name, hours,
     exitMin:(minute+hours*60)%1440,
